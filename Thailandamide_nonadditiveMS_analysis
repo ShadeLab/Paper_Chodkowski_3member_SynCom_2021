@@ -1,0 +1,126 @@
+#Read in data
+Thail <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/Thailandamide_metaboliteAbun_NonAdditiveUP_nonPolarPositive.csv", sep=",",header=TRUE)
+
+#Make time a factor
+Thail$Time <- as.factor(Thail$Time)
+library(ggplot2)
+
+Thail$Membership <- factor(Thail$Membership,levels = c("BtPs","BtCv","BtCv-BtPs","BtCvPs"),ordered = TRUE)
+p <- ggplot(Thail, aes(x=Time, y=Value, fill=Membership)) +
+  geom_boxplot()
+
+pp <- p + labs(y="Intensity (AU - Relativized to internal reference)", x = "Time (h)") +
+  theme(legend.position = "right",
+        axis.text = element_text(size=10),
+        axis.title = element_text(size=14),
+        plot.title = element_text(size=14),
+        legend.text = element_text(size=12))
+
+#save
+ggsave("Thailandamide_MetaboliteAbundance_NonadditiveUpProduction.eps",plot=pp,device="eps",width=30,height=30, units="cm",dpi=300)
+
+#T-test between 3-member and combined cocultures at 45h
+t.test(log(Thail[44:47,4]),log(Thail[64:66,4]))
+t.test(log(Thail[48:51,4]),log(Thail[67:70,4]))
+t.test(log(Thail[52:54,4]),log(Thail[71:74,4]))
+t.test(log(Thail[55:57,4]),log(Thail[75:78,4]))
+t.test(log(Thail[58:60,4]),log(Thail[79:81,4]))
+t.test(log(Thail[61:63,4]),log(Thail[82:84,4]))
+
+
+#Perform anova between groups (forget time for simplification)
+library(dplyr)
+obj <- Thail %>% group_by(Time) %>% do(model = aov(log(Value)~Membership, data = .))
+for(i in 1:nrow(obj)) {
+  print(i)
+  print(summary(obj$model[[i]]))
+  }
+
+obj <- Thail %>% group_by(Time) %>% do(model = aov(log(Value)~Membership, data = .))
+TukeyHSD(obj$model[[1]])
+
+
+####Run two-way repeated measure anova on the time series
+
+#Tutorial found here: https://www.datanovia.com/en/lessons/repeated-measures-anova-in-r/
+library(tidyverse)
+library(ggpubr)
+library(rstatix)
+
+#Extract 3-member and combined coculture data
+vars <- c("BtCvPs", "BtCv-BtPs")
+Thail_ext <- filter(Thail, Membership %in% vars)
+
+#Test needs even samples. Need to remove data where uneven
+Thail_edit <- Thail_ext[-c(1,5,24,28,32),]
+
+#Add unique identifiers
+Thail_edit$ID <- as.factor(rep(1:3,nrow(Thail_edit)/3))
+
+#Variance stabilize
+Thail_edit$Value <- log(Thail_edit$Value)
+
+
+res.aov <- anova_test(
+  data = Thail_edit, dv = Value, wid = Sample,
+  within = c(Membership, Time)
+  )
+
+#convert Membership to factor
+
+Thail_edit %>% anova_test( dv = Value, wid = ID,
+  within = c(Membership, Time)
+  )
+
+# Effect of treatment at each time point
+one.way <- Thail_edit %>%
+  group_by(Time) %>%
+  anova_test(dv = Value, wid = ID, within = Membership) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni")
+one.way
+
+# Pairwise comparisons between treatment groups
+pwc <- Thail_edit %>%
+  group_by(Time) %>%
+  pairwise_t_test(
+    Value ~ Membership, paired = TRUE,
+    p.adjust.method = "bonferroni"
+    )
+pwc
+
+
+
+
+
+
+
+#####Thailandamide signals in NPN
+#Read in data
+Thail <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/Thailandamide_metaboliteAbun_NonAdditiveUP_nonPolarNegative.csv", sep=",",header=TRUE)
+
+#Make time a factor
+Thail$Time <- as.factor(Thail$Time)
+library(ggplot2)
+
+Thail$Membership <- factor(Thail$Membership,levels = c("BtPs","BtCv","BtCv-BtPs","BtCvPs"),ordered = TRUE)
+p <- ggplot(Thail, aes(x=Time, y=Value_1, fill=Membership)) +
+  geom_boxplot()
+
+#T-test between 3-member and combined cocultures at 45h
+t.test(Thail[71:73,4],Thail[53:55,4])
+t.test(Thail[71:73,5],Thail[53:55,5])
+t.test(Thail[71:73,6],Thail[53:55,6])
+
+
+#Perform anova between groups (forget time for simplification)
+library(dplyr)
+obj <- Thail %>% group_by(Time) %>% do(model = aov(log(Value)~Membership, data = .))
+for(i in 1:nrow(obj)) {
+  print(i)
+  print(summary(obj$model[[i]]))
+  }
+
+
+obj <- Thail %>% group_by(Time) %>% do(model = aov(log(Value)~Membership, data = .))
+TukeyHSD(obj$model[[1]])

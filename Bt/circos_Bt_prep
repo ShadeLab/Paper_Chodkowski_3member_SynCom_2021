@@ -1,0 +1,148 @@
+library(DESeq2)
+lib <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/B-thailandensis_LIBRARIES.txt", sep="\t",header=TRUE)
+counts <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/Btraw_counts_kallisoNCBI.txt",sep="\t",header=TRUE)
+
+ddsMat <- readRDS("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/diffExp/initial_files/Deseq2Results_kallistoNCBI.rds")
+
+load("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/lfc/output/BthailandensisLFC_kallisto.RData")
+
+lfc_analysis <- data.frame(lfc_3memInt_comparedtoMonoInt.fc,lfc_3mem25_comparedtoMono25.fc,lfc_3mem30_comparedtoMono30.fc,
+                      lfc_3mem35_comparedtoMono35.fc,lfc_3mem40_comparedtoMono40.fc,lfc_3mem45_comparedtoMono45.fc)
+row.names(lfc_analysis) <- row.names(lfc_3memInt_comparedtoMonoInt)
+
+library(dplyr)
+library(tibble)
+
+#Obtain ~500 top up- and down-regulated genes
+lfc_th <- lfc_analysis %>%
+    rownames_to_column(as.character('gene')) %>%
+    filter_if(is.numeric,any_vars(. > 1.61 | . < -1.61)) %>%
+    column_to_rownames('gene')
+
+resTC <- results(ddsMat)
+resTC <- resTC[which(row.names(resTC) %in% row.names(lfc_th)),]
+
+metadata(resTC)
+resTC <- resTC[complete.cases(resTC$padj),]
+resTC <- resTC[resTC$padj<0.01,]
+sigGen <- rownames(resTC)
+
+norm_transform <- rlog(ddsMat,blind=FALSE)
+norm_transform_mat <- assay(norm_transform)
+
+normSigGen <- norm_transform_mat[which(rownames(norm_transform_mat) %in% sigGen),]
+
+#Now we need to average bioreps
+#Since colNames of normSigGene are in same order as mapping$factor, let's replace
+
+mapping <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/Bt_diffExp_all.csv",header=TRUE,sep=",")
+
+nSG <- as.data.frame(t(normSigGen))
+nSG$factor <- mapping$factor
+
+#For all genes
+nSG_all <- as.data.frame(t(norm_transform_mat))
+nSG_all$factor <- mapping$factor
+
+library(reshape2)
+nsg_melt <- melt(nSG,id.vars=c("factor"))
+nsg_melt_all <- melt(nSG_all,id.vars=c("factor"))
+
+
+#Obtain expression averages between (3-4) bioreps per condition at each timepoint.
+nsg_mean <- aggregate(value~factor+variable,nsg_melt,mean)
+nsg_mean_all <- aggregate(value~factor+variable,nsg_melt_all,mean)
+
+saveRDS(nsg_mean,"/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/circos/final_sigGene_lfc_filtered_forCircos_kallisto.rds")
+saveRDS(nsg_mean_all,"/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/circos/final_allGenes_forCircos_kallisto.rds")
+
+############################################################
+
+#Start here unless you want to change # of genes filtered. Then see above
+
+library(reshape2)
+library(dplyr)
+library(tibble)
+
+nsg_mean <- readRDS("final_sigGene_lfc_filtered_forCircos_kallisto.rds")
+nsg_meanAll <- readRDS("final_allGenes_forCircos_kallisto.rds")
+
+#Now, convert back to matrix so that we can Z-transform
+nsg_mean_mat <- dcast(data=nsg_mean,formula=factor~ variable, value.var="value")
+nsg_meanAll_mat <- dcast(data=nsg_meanAll,formula=factor~ variable, value.var="value")
+
+#Remove factor column
+nsg_meanMat <- nsg_mean_mat[,-1]
+nsg_meanMatAll <- nsg_meanAll_mat[,-1]
+
+#Z-score- performed function by column, so we are Z-scoring by gene.
+Zscore <- scale(nsg_meanMat,scale=TRUE,center=TRUE)
+ZscoreAll <- scale(nsg_meanMatAll,scale=TRUE,center=TRUE)
+
+#Remove attributes
+attr(Zscore,"scaled:center")<-NULL
+attr(Zscore,"scaled:scale")<-NULL
+
+attr(ZscoreAll,"scaled:center")<-NULL
+attr(ZscoreAll,"scaled:scale")<-NULL
+
+#Add back factor
+Zscore <- as.data.frame(Zscore)
+Zscore$factor <- nsg_mean_mat$factor
+
+ZscoreAll <- as.data.frame(ZscoreAll)
+ZscoreAll$factor <- nsg_meanAll_mat$factor
+
+#And finally, aggregrate, again
+
+nsg_mean <-  melt(Zscore,id.vars=c("factor"))
+nsg_meanAll <-  melt(ZscoreAll,id.vars=c("factor"))
+
+#Read in coordinate file
+library(rtracklayer)
+gff <- readGFF("../initial_files/GCA_000012365.1_ASM1236v1_genomic.gff")
+CDS <- as.data.frame(gff[gff$type=="CDS",])
+
+BtMetaD <- CDS %>%
+  select(locus_tag, start, end, seqid)
+
+#Some of these locus tags may be redundant because they cover different parts of the total CDS
+#Let's combine these duplicates into one CDS using the min and max range
+
+#Find duplicated genes and parse them out
+BtMetaDups <- BtMetaD[which(BtMetaD$locus_tag %in% unique(BtMetaD[duplicated(BtMetaD$locus_tag),]$locus_tag)),]
+
+BtMetaDups %>%
+   group_by(locus_tag) %>%
+   slice(c(which.min(start), which.max(end)))
+
+BtMetaDupsC <- as.data.frame(BtMetaDups %>% group_by(locus_tag) %>%
+  summarize(start = min(start),
+  end = max(end), seqid=unique(seqid)))
+
+#Remove duplicates from the orignal metaData
+BtMetaDupsR <- BtMetaD[!(duplicated(BtMetaD$locus_tag) | duplicated(BtMetaD$locus_tag, fromLast = TRUE)), ]
+#Make sure they have been removed
+BtMetaDupsCheck <- BtMetaDupsR[which(BtMetaDupsR$locus_tag %in% unique(BtMetaDupsR[duplicated(BtMetaDupsR$locus_tag),]$locus_tag)),]
+
+#Add back in the unduplicated genes of interest
+BtMetaD <- rbind(BtMetaDupsR,BtMetaDupsC)
+
+names(BtMetaD)[4] <- "Chromosome"
+
+BtMetaD$Chromosome <- as.character(BtMetaD$Chromosome)
+
+#Convert chromosome names to names for circos plots
+BtMetaD <- within(BtMetaD,Chromosome[Chromosome== "CP000086.1"] <- "chr1")
+BtMetaD <- within(BtMetaD,Chromosome[Chromosome== "CP000085.1"] <- "chr2")
+
+#Change column name in nsg_mean to match in BtMetaD
+colnames(nsg_mean)[2] <- "locus_tag"
+colnames(nsg_meanAll)[2] <- "locus_tag"
+
+#merge tables
+nsg_Meta <- merge(nsg_mean,BtMetaD[,c("locus_tag","start","end","Chromosome")],by="locus_tag")
+nsg_MetaAll <- merge(nsg_meanAll,BtMetaD[,c("locus_tag","start","end","Chromosome")],by="locus_tag")
+
+write.csv(nsg_Meta, "circos_sigGenesFiltered_Zscored_kallisto.csv")
+write.csv(nsg_MetaAll, "circos_allGenes_Zscored_kallisto.csv")

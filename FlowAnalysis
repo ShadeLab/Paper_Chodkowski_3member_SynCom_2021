@@ -1,0 +1,86 @@
+Flowdata <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/SynCom_FlowFinal.csv", header=TRUE, sep=",")
+
+#Keep columns of interest
+flowData <- Flowdata[,c(1,5:9)]
+
+#Average tech reps within a time point
+library(dplyr)
+detach("package:plyr", unload=TRUE)
+groupedFlowData <- flowData %>% group_by(Species,Biorep,TimePoint,Membership)
+#Get mean and std
+groupedAvgCounts.live <- summarise(groupedFlowData, mean=mean(Live.CFU.mL))
+groupedAvgCounts.dead <- summarise(groupedFlowData, mean=mean(Dead.Population))
+
+groupedAvgCounts.live$viability <- "Live"
+groupedAvgCounts.dead$viability <- "Dead"
+
+groupedAvgCounts <- rbind(groupedAvgCounts.live,groupedAvgCounts.dead)
+
+library(ggplot2)
+
+#B. thailandensis plots
+groupedAvgCounts.Bt <- groupedAvgCounts[groupedAvgCounts$Species=="B. thailandensis",]
+
+groupedAvgCounts.Bt$Membership <- factor(groupedAvgCounts.Bt$Membership,levels = c("Bt","BtPs","BtCv","BtCvPs"),ordered = TRUE)
+
+g=ggplot(groupedAvgCounts.Bt, aes(x=as.factor(TimePoint), y=log10(mean),fill=viability))+
+  geom_boxplot()+
+  theme_bw(base_size=10)+
+  scale_fill_manual(values = c("lightblue","green")) +
+  theme(axis.title = element_text(size = 12),axis.text = element_text(size = 10),strip.text.x = element_text(size = 10))+
+  facet_wrap(Membership ~ ., nrow = 2)
+
+flowPlot <- g + ylim(c(5,10)) + xlab("Time (h)") + ylab("Log10 cells/mL") +
+  theme(legend.title = element_text(size = 12),legend.text = element_text(size = 10),legend.position = "bottom") +
+  labs(fill = "Viability assessment") + guides(fill = guide_legend(reverse = TRUE))
+
+ggsave("SynComCellCounts.Bt.eps",plot= flowPlot,device="eps",width=6,height=8,units="in",dpi=300)
+
+Bt.Summary <- groupedAvgCounts.Bt %>%
+  group_by(Membership,TimePoint,viability) %>%
+  summarise(mean = mean(mean))
+
+#C. violaceum plots
+groupedAvgCounts.Cv <- groupedAvgCounts[groupedAvgCounts$Species=="C. violaceum",]
+
+groupedAvgCounts.Cv$Membership <- factor(groupedAvgCounts.Cv$Membership,levels = c("Cv","CvPs","CvBt","CvPsBt"),ordered = TRUE)
+
+g=ggplot(groupedAvgCounts.Cv, aes(x=as.factor(TimePoint), y=log10(mean),fill=viability))+
+  geom_boxplot()+
+  theme_bw(base_size=10)+
+  scale_fill_manual(values = c("lightblue","green")) +
+  theme(axis.title = element_text(size = 12),axis.text = element_text(size = 10),strip.text.x = element_text(size = 10))+
+  facet_wrap(Membership ~ ., nrow = 2)
+
+flowPlot <- g + ylim(c(5,10)) + xlab("Time (h)") + ylab("Log10 cells/mL") +
+  theme(legend.title = element_text(size = 12),legend.text = element_text(size = 10),legend.position = "bottom") +
+  labs(fill = "Viability assessment") + guides(fill = guide_legend(reverse = TRUE))
+
+ggsave("SynComCellCounts.Cv.eps",plot= flowPlot,device="eps",width=6,height=8,units="in",dpi=300)
+
+Cv.Summary <- groupedAvgCounts.Cv %>%
+  group_by(Membership,TimePoint,viability) %>%
+  summarise(mean = mean(mean))
+
+
+#P. syringae plots
+groupedAvgCounts.Ps <- groupedAvgCounts[groupedAvgCounts$Species=="P. syringae",]
+
+groupedAvgCounts.Ps$Membership <- factor(groupedAvgCounts.Ps$Membership,levels = c("Ps","PsCv","PsBt","PsBtCv"),ordered = TRUE)
+
+g=ggplot(groupedAvgCounts.Ps, aes(x=as.factor(TimePoint), y=log10(mean),fill=viability))+
+  geom_boxplot()+
+  theme_bw(base_size=10)+
+  scale_fill_manual(values = c("lightblue","green")) +
+  theme(axis.title = element_text(size = 12),axis.text = element_text(size = 10),strip.text.x = element_text(size = 10))+
+  facet_wrap(Membership ~ ., nrow = 2)
+
+flowPlot <- g + ylim(c(5,10)) + xlab("Time (h)") + ylab("Log10 cells/mL") +
+  theme(legend.title = element_text(size = 12),legend.text = element_text(size = 10),legend.position = "bottom") +
+  labs(fill = "Viability assessment") + guides(fill = guide_legend(reverse = TRUE))
+
+ggsave("SynComCellCounts.Ps.eps",plot= flowPlot,device="eps",width=6,height=8,units="in",dpi=300)
+
+Ps.Summary <- groupedAvgCounts.Ps %>%
+  group_by(Membership,TimePoint,viability) %>%
+  summarise(mean = mean(mean))

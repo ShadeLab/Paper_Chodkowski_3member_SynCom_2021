@@ -1,0 +1,735 @@
+#####This is analysis is determine the number of released exometabolites in each isolate#####
+#####and, determine the identity of a subset of these exometabolites#####
+#####This is for Polar analysis in positive ionization mode#####
+
+library(dplyr)
+
+#Read in MZmine final feature table for MS analysis
+#####################MAKE SURE YOU CHANGE THIS ON GITHUB FOR FINAL CODE SUBMISSION#####################
+filt <- read.csv("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/MS/initialFiles/MZminePolarPoswExConForQC.csv",check.names=F)
+
+#Remove outlier-1mem_Bt_45hr-4
+filt_f <- filt[,-c(86)]
+
+#Create group/sample identifiers
+#library(reshape)
+#filtMelt <- melt(filt_f,id.vars=c("ID","RT","MZ"))
+
+#Split column name string so we get 1mem, 2mem, 3mem and ExCon identifiers
+#msD <- data.frame(do.call('rbind', strsplit(as.character(filtMelt$variable),'_',fixed=TRUE)))
+#Place this into melted object
+#filtMelt$group <- msD$X1
+
+#Melt dataframe
+library(reshape2)
+#Melt dataframe
+filtM <- melt(filt_f,id.vars=c("ID","RT","MZ"))
+
+#Change NA values and 0s to low value
+min(filtM[filtM$value>0,5],na.rm=TRUE)
+filtM[,5][filtM[,5]==0] <-1/1000*min(filtM[filtM$value>0,5],na.rm=TRUE)
+
+###################################Filter 1###################################
+
+#Retain features where the maximum value is found in a consortia
+library(dplyr)
+
+#Create groups for averaging
+msD <- data.frame(do.call('rbind', strsplit(as.character(filtM$variable),'-',fixed=TRUE)))
+msD_2 <- data.frame(do.call('rbind', strsplit(as.character(msD$X1),'_',fixed=TRUE)))
+
+#Place this into melted object
+filtM$group <- msD_2$X2
+
+#Obtain the group with the maximum peak area value
+FeatureMax <- filtM %>%
+             group_by(ID) %>%
+             filter(value == max(value,na.rm=T))
+
+#Obtain feature IDs where the max value was found in 3mem, BtCv, BtPs, CvPs
+
+MaxIn3mem <- FeatureMax[FeatureMax$group=="Full",]
+MaxInBtCv <- FeatureMax[FeatureMax$group=="BtCv",]
+MaxInBtPs <- FeatureMax[FeatureMax$group=="BtPs",]
+MaxInCvPs <- FeatureMax[FeatureMax$group=="CvPs",]
+
+#Sort in ascending order by ID
+MaxIn3mem <- MaxIn3mem[order(MaxIn3mem$ID),]
+MaxInBtCv <- MaxInBtCv[order(MaxInBtCv$ID),]
+MaxInBtPs <- MaxInBtPs[order(MaxInBtPs$ID),]
+MaxInCvPs <- MaxInCvPs[order(MaxInCvPs$ID),]
+
+#Add groupTime column
+gtFull <- data.frame(do.call('rbind', strsplit(as.character(MaxIn3mem$variable),'-',fixed=TRUE)))
+gtBtCv <- data.frame(do.call('rbind', strsplit(as.character(MaxInBtCv$variable),'-',fixed=TRUE)))
+gtBtPs <- data.frame(do.call('rbind', strsplit(as.character(MaxInBtPs$variable),'-',fixed=TRUE)))
+gtCvPs <- data.frame(do.call('rbind', strsplit(as.character(MaxInCvPs$variable),'-',fixed=TRUE)))
+
+#add column to original
+MaxIn3mem$groupTime <- gtFull$X1
+MaxInBtCv$groupTime <- gtBtCv$X1
+MaxInBtPs$groupTime <- gtBtPs$X1
+MaxInCvPs$groupTime <- gtCvPs$X1
+
+#Keep these features
+filtS1_3mem <- filt_f[c(which(filt_f$ID %in% MaxIn3mem$ID)),]
+filtS1_BtCv <- filt_f[c(which(filt_f$ID %in% MaxInBtCv$ID)),]
+filtS1_BtPs <- filt_f[c(which(filt_f$ID %in% MaxInBtPs$ID)),]
+filtS1_CvPs <- filt_f[c(which(filt_f$ID %in% MaxInCvPs$ID)),]
+
+###################################Filter 2###################################
+
+#Noise filter: The min value in a condition should be 3x the max value found in the ExCon (Filter suggested by JGI)
+
+library(reshape)
+filt3mem <- melt(filtS1_3mem,id.vars=c("ID","RT","MZ"))
+filtBtCv <- melt(filtS1_BtCv,id.vars=c("ID","RT","MZ"))
+filtBtPs <- melt(filtS1_BtPs,id.vars=c("ID","RT","MZ"))
+filtCvPs <- melt(filtS1_CvPs,id.vars=c("ID","RT","MZ"))
+
+#Change NA values and 0s to low value
+min(filt3mem[filt3mem$value>0,5],na.rm=TRUE)
+min(filtBtCv[filtBtCv$value>0,5],na.rm=TRUE)
+min(filtBtPs[filtBtPs$value>0,5],na.rm=TRUE)
+min(filtCvPs[filtCvPs$value>0,5],na.rm=TRUE)
+
+#filtM[,5][is.zero(filtM[,5])] <-1/1000*min(filtM[filtM$value>0,5],na.rm=TRUE)
+filt3mem[,5][filt3mem[,5]==0] <-1/1000*min(filt3mem[filt3mem$value>0,5],na.rm=TRUE)
+filtBtCv[,5][filtBtCv[,5]==0] <-1/1000*min(filtBtCv[filtBtCv$value>0,5],na.rm=TRUE)
+filtBtPs[,5][filtBtPs[,5]==0] <-1/1000*min(filtBtPs[filtBtPs$value>0,5],na.rm=TRUE)
+filtCvPs[,5][filtCvPs[,5]==0] <-1/1000*min(filtCvPs[filtCvPs$value>0,5],na.rm=TRUE)
+
+#Create groups
+msFull <- data.frame(do.call('rbind', strsplit(as.character(filt3mem$variable),'-',fixed=TRUE)))
+msFull_2 <- data.frame(do.call('rbind', strsplit(as.character(msFull$X1),'_',fixed=TRUE)))
+
+msBtCv <- data.frame(do.call('rbind', strsplit(as.character(filtBtCv$variable),'-',fixed=TRUE)))
+msBtCv_2 <- data.frame(do.call('rbind', strsplit(as.character(msBtCv$X1),'_',fixed=TRUE)))
+
+msBtPs <- data.frame(do.call('rbind', strsplit(as.character(filtBtPs$variable),'-',fixed=TRUE)))
+msBtPs_2 <- data.frame(do.call('rbind', strsplit(as.character(msBtPs$X1),'_',fixed=TRUE)))
+
+msCvPs <- data.frame(do.call('rbind', strsplit(as.character(filtCvPs$variable),'-',fixed=TRUE)))
+msCvPs_2 <- data.frame(do.call('rbind', strsplit(as.character(msCvPs$X1),'_',fixed=TRUE)))
+
+#Place this into melted object
+filt3mem$MaxMatch <- msFull$X1
+filt3mem$group <- msFull_2$X2
+
+filtBtCv$MaxMatch <- msBtCv$X1
+filtBtCv$group <- msBtCv_2$X2
+
+filtBtPs$MaxMatch <- msBtPs$X1
+filtBtPs$group <- msBtPs_2$X2
+
+filtCvPs$MaxMatch <- msCvPs$X1
+filtCvPs$group <- msCvPs_2$X2
+
+#Filter out consortia conditions and ExCon
+#Detach plyr if not working
+detach("package:plyr", unload=TRUE)
+require(dplyr)
+Fullsamps <- c("Full", "ExControl")
+BtCvsamps <- c("BtCv", "ExControl")
+BtPssamps <- c("BtPs", "ExControl")
+CvPssamps <- c("CvPs", "ExControl")
+
+filtFull_ExCon <- filter(filt3mem, group %in% Fullsamps)
+filtBtCv_ExCon <- filter(filtBtCv, group %in% BtCvsamps)
+filtBtPs_ExCon <- filter(filtBtPs, group %in% BtPssamps)
+filtCvPs_ExCon <- filter(filtCvPs, group %in% CvPssamps)
+
+#Add condition and time where the max value was found
+filtFull_ExCon$groupTime <- rep(MaxIn3mem$groupTime,28)
+filtBtCv_ExCon$groupTime <- rep(MaxInBtCv$groupTime,28)
+filtBtPs_ExCon$groupTime <- rep(MaxInBtPs$groupTime,28)
+filtCvPs_ExCon$groupTime <- rep(MaxInCvPs$groupTime,28)
+
+#Obtain max values for each ID for
+require(dplyr)
+filtFullConMax <- filtFull_ExCon %>% group_by(ID,group) %>% summarise(value = max(value))
+filtBtCvConMax <- filtBtCv_ExCon %>% group_by(ID,group) %>% summarise(value = max(value))
+filtBtPsConMax <- filtBtPs_ExCon %>% group_by(ID,group) %>% summarise(value = max(value))
+filtCvPsConMax <- filtCvPs_ExCon %>% group_by(ID,group) %>% summarise(value = max(value))
+
+#Match the number of factor levels
+filtFull_ExCon$MaxMatch <- factor(filtFull_ExCon$MaxMatch, levels=levels(filtFull_ExCon$groupTime))
+filtBtCv_ExCon$MaxMatch <- factor(filtBtCv_ExCon$MaxMatch, levels=levels(filtBtCv_ExCon$groupTime))
+filtBtPs_ExCon$MaxMatch <- factor(filtBtPs_ExCon$MaxMatch, levels=levels(filtBtPs_ExCon$groupTime))
+filtCvPs_ExCon$MaxMatch <- factor(filtCvPs_ExCon$MaxMatch, levels=levels(filtCvPs_ExCon$groupTime))
+
+#From each ID, extract all replicates from the condition (group + time) that the max value was found
+filtFull_ExConMaxReps <- filtFull_ExCon[filtFull_ExCon$MaxMatch==filtFull_ExCon$groupTime,]
+filtBtCv_ExConMaxReps <- filtBtCv_ExCon[filtBtCv_ExCon$MaxMatch==filtBtCv_ExCon$groupTime,]
+filtBtPs_ExConMaxReps <- filtBtPs_ExCon[filtBtPs_ExCon$MaxMatch==filtBtPs_ExCon$groupTime,]
+filtCvPs_ExConMaxReps <- filtCvPs_ExCon[filtCvPs_ExCon$MaxMatch==filtCvPs_ExCon$groupTime,]
+
+
+#Obtain min values for each ID for
+#Note, this minimum value will be the smallest value obtained within the replicates where the max value was found
+#Meaning, filter step 1 obtained condition and times where the max value was found (e.g. Full_45hr). This group contained ~4 replicates
+#Within the replicates where the max value was found, which in the smallest value from this group?
+#This is the data we want. Otherwise, if we just obtain the smallest value across the whole condition (e.g. Full)
+#We're excluding the possibility that this exometabolite could appear at later time timepoints
+
+filtFullConMin <- filtFull_ExConMaxReps %>% group_by(ID,groupTime) %>% summarise(value = min(value))
+filtBtCvConMin <- filtBtCv_ExConMaxReps %>% group_by(ID,groupTime) %>% summarise(value = min(value))
+filtBtPsConMin <- filtBtPs_ExConMaxReps %>% group_by(ID,groupTime) %>% summarise(value = min(value))
+filtCvPsConMin <- filtCvPs_ExConMaxReps %>% group_by(ID,groupTime) %>% summarise(value = min(value))
+
+#Obtain and combine min from conditions and max from excontrol
+filtFullConMaxMin <- rbind(filtFullConMin,filtFullConMax[filtFullConMax$group=="ExControl",])
+filtBtCvConMaxMin <- rbind(filtBtCvConMin,filtBtCvConMax[filtBtCvConMax$group=="ExControl",])
+filtBtPsConMaxMin <- rbind(filtBtPsConMin,filtBtPsConMax[filtBtPsConMax$group=="ExControl",])
+filtCvPsConMaxMin <- rbind(filtCvPsConMin,filtCvPsConMax[filtCvPsConMax$group=="ExControl",])
+
+#Obtain fold change of max values between 45 TP and ExCon
+FullFC <- filtFullConMaxMin %>%
+             group_by(ID) %>%
+             mutate(
+             FC = lag(value)/value
+             )
+table(FullFC$FC>3)
+
+BtCvFC <- filtBtCvConMaxMin %>%
+             group_by(ID) %>%
+             mutate(
+             FC = lag(value)/value
+             )
+table(BtCvFC$FC>3)
+
+BtPsFC <- filtBtPsConMaxMin %>%
+             group_by(ID) %>%
+             mutate(
+             FC = lag(value)/value
+             )
+table(BtPsFC$FC>3)
+
+CvPsFC <- filtCvPsConMaxMin %>%
+             group_by(ID) %>%
+             mutate(
+             FC = lag(value)/value
+             )
+table(CvPsFC$FC>3)
+
+#Doublecheck that the FC calculations were accurate
+FullFC[order(FullFC$ID),]
+BtCvFC[order(BtCvFC$ID),]
+BtPsFC[order(BtPsFC$ID),]
+CvPsFC[order(CvPsFC$ID),]
+
+FullMinMaxIDs <- unique(FullFC$ID[FullFC$FC>3]) #2904
+BtCvMinMaxIDs <- unique(BtCvFC$ID[BtCvFC$FC>3]) #2487
+BtPsMinMaxIDs <- unique(BtPsFC$ID[BtPsFC$FC>3]) #2348
+CvPsMinMaxIDs <- unique(CvPsFC$ID[CvPsFC$FC>3]) #3610
+
+FullMinMaxFeatures <- filt_f[which(filt_f$ID %in% FullMinMaxIDs),]
+BtCvMinMaxFeatures <- filt_f[which(filt_f$ID %in% BtCvMinMaxIDs),]
+BtPsMinMaxFeatures <- filt_f[which(filt_f$ID %in% BtPsMinMaxIDs),]
+CvPsMinMaxFeatures <- filt_f[which(filt_f$ID %in% CvPsMinMaxIDs),]
+
+###################################Filter 3###################################
+
+#RSD filter below 20%- All time points needs to be below 20%
+
+filtMeltFull <- melt(FullMinMaxFeatures,id.vars=c("ID","RT","MZ"))
+filtMeltBtCv <- melt(BtCvMinMaxFeatures,id.vars=c("ID","RT","MZ"))
+filtMeltBtPs <- melt(BtPsMinMaxFeatures,id.vars=c("ID","RT","MZ"))
+filtMeltCvPs <- melt(CvPsMinMaxFeatures,id.vars=c("ID","RT","MZ"))
+
+#Change NA values and 0s to low value
+filtMeltFull[,5][filtMeltFull[,5]<2] <- 2
+filtMeltBtCv[,5][filtMeltBtCv[,5]<2] <- 2
+filtMeltBtPs[,5][filtMeltBtPs[,5]<2] <- 2
+filtMeltCvPs[,5][filtMeltCvPs[,5]<2] <- 2
+
+#Perform RSD filter
+rsdFull <- filtMeltFull
+rsdBtCv <- filtMeltBtCv
+rsdBtPs <- filtMeltBtPs
+rsdCvPs <- filtMeltCvPs
+
+#log transform values
+rsdFull$value <- log2(rsdFull$value)
+rsdBtCv$value <- log2(rsdBtCv$value)
+rsdBtPs$value <- log2(rsdBtPs$value)
+rsdCvPs$value <- log2(rsdCvPs$value)
+
+#Create tibble
+msDFull <- data.frame(do.call('rbind', strsplit(as.character(rsdFull$variable),'-',fixed=TRUE)))
+msDBtCv <- data.frame(do.call('rbind', strsplit(as.character(rsdBtCv$variable),'-',fixed=TRUE)))
+msDBtPs <- data.frame(do.call('rbind', strsplit(as.character(rsdBtPs$variable),'-',fixed=TRUE)))
+msDCvPs <- data.frame(do.call('rbind', strsplit(as.character(rsdCvPs$variable),'-',fixed=TRUE)))
+
+#Place this into melted object
+rsdFull$groupTime <- msDFull$X1
+rsdBtCv$groupTime <- msDBtCv$X1
+rsdBtPs$groupTime <- msDBtPs$X1
+rsdCvPs$groupTime <- msDCvPs$X1
+
+#Add conditions to tibble
+condFull <- data.frame(do.call('rbind', strsplit(as.character(rsdFull$variable),'_',fixed=TRUE)))
+condBtCv <- data.frame(do.call('rbind', strsplit(as.character(rsdBtCv$variable),'_',fixed=TRUE)))
+condBtPs <- data.frame(do.call('rbind', strsplit(as.character(rsdBtPs$variable),'_',fixed=TRUE)))
+condCvPs <- data.frame(do.call('rbind', strsplit(as.character(rsdCvPs$variable),'_',fixed=TRUE)))
+
+rsdFull$cond <- condFull$X2
+rsdBtCv$cond <- condBtCv$X2
+rsdBtPs$cond <- condBtPs$X2
+rsdCvPs$cond <- condCvPs$X2
+
+#Keep only conditions of interest
+rsdFullOnly <- rsdFull[rsdFull$cond=="Full",]
+rsdBtCvOnly <- rsdBtCv[rsdBtCv$cond=="BtCv",]
+rsdBtPsOnly <- rsdBtPs[rsdBtPs$cond=="BtPs",]
+rsdCvPsOnly <- rsdCvPs[rsdCvPs$cond=="CvPs",]
+
+library(dplyr)
+detach("package:plyr", unload=TRUE)
+groupedRSDFull <- rsdFullOnly %>% group_by(ID,RT,MZ,groupTime)
+groupedRSDBtCv <- rsdBtCvOnly %>% group_by(ID,RT,MZ,groupTime)
+groupedRSDBtPs <- rsdBtPsOnly %>% group_by(ID,RT,MZ,groupTime)
+groupedRSDCvPs <- rsdCvPsOnly %>% group_by(ID,RT,MZ,groupTime)
+
+#Get mean and std
+groupRSDSumFull <- summarise(groupedRSDFull, mean=mean(value), sd=sd(value))
+groupRSDSumBtCv <- summarise(groupedRSDBtCv, mean=mean(value), sd=sd(value))
+groupRSDSumBtPs <- summarise(groupedRSDBtPs, mean=mean(value), sd=sd(value))
+groupRSDSumCvPs <- summarise(groupedRSDCvPs, mean=mean(value), sd=sd(value))
+
+#Calculate RSD
+groupRSDSumFull$RSD <-groupRSDSumFull$sd/groupRSDSumFull$mean
+groupRSDSumBtCv$RSD <-groupRSDSumBtCv$sd/groupRSDSumBtCv$mean
+groupRSDSumBtPs$RSD <-groupRSDSumBtPs$sd/groupRSDSumBtPs$mean
+groupRSDSumCvPs$RSD <-groupRSDSumCvPs$sd/groupRSDSumCvPs$mean
+
+#Determine which IDs have a RSD of 0.
+groupRSDSumFull0s <- as.data.frame(groupRSDSumFull[groupRSDSumFull$RSD==0,])
+groupRSDSumBtCv0s <- as.data.frame(groupRSDSumBtCv[groupRSDSumBtCv$RSD==0,])
+groupRSDSumBtPs0s <- as.data.frame(groupRSDSumBtPs[groupRSDSumBtPs$RSD==0,])
+groupRSDSumCvPs0s <- as.data.frame(groupRSDSumCvPs[groupRSDSumCvPs$RSD==0,])
+
+#Most of these occur at the initial time point. This is okay. Just means that the exometabolite wasn't detected at the initial time point
+
+#The plan: get rid of highly variable features. Features across all time point should have a RSD <20%. Standard in LCMS is 20%
+#Find max RSD value
+groupRSDSumFullMAX <- groupRSDSumFull %>%
+             group_by(ID) %>%
+             filter(RSD == max(RSD,na.rm=T))
+
+groupRSDSumBtCvMAX <- groupRSDSumBtCv %>%
+             group_by(ID) %>%
+             filter(RSD == max(RSD,na.rm=T))
+
+groupRSDSumBtPsMAX <- groupRSDSumBtPs %>%
+             group_by(ID) %>%
+             filter(RSD == max(RSD,na.rm=T))
+
+groupRSDSumCvPsMAX <- groupRSDSumCvPs %>%
+             group_by(ID) %>%
+             filter(RSD == max(RSD,na.rm=T))
+
+
+#Remove features whose minimum RSD value is >0.2. High variable features
+FullFinalIDs <- groupRSDSumFullMAX$ID[groupRSDSumFullMAX$RSD<0.2] #1663
+BtCvFinalIDs <- groupRSDSumBtCvMAX$ID[groupRSDSumBtCvMAX$RSD<0.2] #1726
+BtPsFinalIDs <- groupRSDSumBtPsMAX$ID[groupRSDSumBtPsMAX$RSD<0.2] #1628
+CvPsFinalIDs <- groupRSDSumCvPsMAX$ID[groupRSDSumCvPsMAX$RSD<0.2] #2414
+
+
+#Save IDs for each isolate that have been determined to be released
+saveRDS(FullFinalIDs, "/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/MS/outputFiles/FullFinalIDsPolarPos.rds")
+saveRDS(BtCvFinalIDs, "/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/MS/outputFiles/BtCvFinalIDsPolarPos.rds")
+saveRDS(BtPsFinalIDs, "/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/MS/outputFiles/BtPsFinalIDsPolarPos.rds")
+saveRDS(CvPsFinalIDs, "/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/MS/outputFiles/CvPsFinalIDsPolarPos.rds")
+
+##########End of filtering steps to determine exometabolites for coculturing##########
+
+#Create CSV for these exometabolites
+
+AllIDs <- c(FullFinalIDs,BtCvFinalIDs,BtPsFinalIDs,CvPsFinalIDs)
+
+prepForMA <- filt_f[c(which(filt_f$ID %in% AllIDs)),]
+#check all is well
+table(AllIDs[order(AllIDs)]==prepForMA$ID)
+
+#Add internal standard- 13C-15N-Alanine, ID 107
+prepForMA <- rbind(prepForMA,filt_f[filt_f$ID=="107",])
+
+#Re-order columns
+prepForMAo <- prepForMA[ , order(names(prepForMA))]
+
+#Save for MetaboAnalyst
+
+write.csv(prepForMAo,"/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/MS/outputFiles/PolarPosFeatures_prepForMetaboAnalyst.csv")
+
+#Manually edited file, put through Metabanalyst to normalize and cuberoot transform
+#Continue from here
+
+#PCA
+
+#Read in normalized data from Metaboanalyst
+dataNorm <- read.csv("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/MS/initialFiles/PolarPos_IndSamples_MetaboanalystNormalization_woMonos.csv",header=TRUE,row.names=1,stringsAsFactors=FALSE)
+
+#Remove first row
+dataNorm.edit <- dataNorm[-1,]
+
+#Create metaData from column headers
+mData.PP <- colnames(dataNorm.edit)
+
+#Split names by "_" to get species
+mDataSplit.PP <- data.frame(do.call('rbind', strsplit(as.character(mData.PP),'_',fixed=TRUE)))
+#Split time remove replicate
+mDataSplitTime.PP <- data.frame(do.call('rbind', strsplit(as.character(mDataSplit.PP$X3),'.',fixed=TRUE)))
+#Bring metaData together
+metaD.PP <- data.frame("Species"=mDataSplit.PP$X2, "Time"=mDataSplitTime.PP$X1)
+
+#Prepare metadata table for varpart
+metaDvP <- metaD.PP
+#Add row names
+row.names(metaDvP) <- mData.PP
+
+metaD.PP <- data.frame("Group"=paste(mDataSplit.PP$X2,mDataSplitTime.PP$X1))
+
+#Convert characters to numeric
+dataNorm.edit <- as.data.frame(lapply(dataNorm.edit, as.numeric))
+
+#Transpose
+dataNormt <- t(dataNorm.edit)
+colnames(dataNormt) <- rownames(dataNorm.edit) #newly added
+
+#Load vegan
+library(vegan)
+dist.Metab <- vegdist(dataNormt, method="bray")
+
+#Create groups
+groups <- c(metaD.PP$Group)
+#Calculate betadisper
+mod <- betadisper(dist.Metab, groups)
+#Calculates spatial median, not center of mass
+
+#Variance explained should match individual plots from Metaboanalyst
+PC1var <- mod$eig[1]/sum(mod$eig) #Checks out
+PC2var <- mod$eig[2]/sum(mod$eig) #Checks out
+
+#Extract scores
+modScores <- scores(mod)
+
+#Extract centroid
+centroids <- as.data.frame(modScores$centroids)
+#Extract species and time info
+condI <- data.frame("Condition"=mDataSplit.PP$X2, "Time"=mDataSplitTime.PP$X1)
+#Remove redundancies
+condI <- condI[!duplicated(condI),]
+#Add species
+centroids$Label <- condI$Condition
+#Add time
+centroids$Time <- condI$Time
+#Flip X-axis
+centroids$PCoA1 <- centroids$PCoA1*-1
+
+#Extract axes vectors from individual samples
+sites <- as.data.frame(modScores$sites)
+#add groups
+sites$groups <- mod$group
+
+#Calculated PCoA axes SDs for each group
+ag <- aggregate(.~groups,sites, function(x) sd=sd(x))
+#Std axis 1
+sd_axis1.PP <- ag$PCoA1
+#Std axis 2
+sd_axis2.PP <- ag$PCoA2
+
+library(ggplot2)
+#library(repr)
+#options(repr.plot.width = 5, repr.plot.height = 3)
+#Change time from factor to numeric
+centroids$Time <- rep(c(12.5,25,30,35,40,45),4)
+
+library(viridis)
+
+PCA_PolarPos <- ggplot(centroids, aes(x=PCoA1, y=PCoA2))+
+  geom_point(aes(size=factor(Time),fill=factor(Label)),colour="black",pch=21)+
+  xlab(label = paste("PC1"," (", format(round(PC1var,digits = 3)*100,nsmall=1), "% var. explained)", sep = ""))+
+  ylab(label = paste("PC2"," (", format(round(PC2var,digits = 3)*100,nsmall=1), "% var. explained)", sep = ""))+
+  scale_x_continuous(breaks = pretty(centroids$PCoA1, n = 5)) +
+  scale_y_continuous(breaks = pretty(centroids$PCoA2, n = 7)) +
+  scale_fill_manual(values=c("#CC79A7", "#F0E442","#56B4E9","#000000")) +
+  theme_bw()+
+  theme(legend.position="none",axis.title = element_text(size = 10),axis.text = element_text(size = 8),
+    legend.title=element_text(size=22))
+
+PCA_PolarPosFinal <- PCA_PolarPos +
+  geom_segment(data=centroids, aes(x=PCoA1,xend=PCoA1+sd_axis1.PP,y=PCoA2,yend=PCoA2),size=0.07,colour="black")+
+  geom_segment(data=centroids, aes(x=PCoA1,xend=PCoA1-sd_axis1.PP,y=PCoA2,yend=PCoA2),size=0.07,colour="black")+
+  geom_segment(data=centroids, aes(x=PCoA1,xend=PCoA1,y=PCoA2,yend=PCoA2+sd_axis2.PP),size=0.07,colour="black")+
+  geom_segment(data=centroids, aes(x=PCoA1,xend=PCoA1,y=PCoA2,yend=PCoA2-sd_axis2.PP),size=0.07,colour="black")
+
+#ggsave("/mnt/scratch/chodkows/PCA_PP_Plot.eps",plot=PCA_PolarPosFinal,device="eps",width=12,height=12, units = "in", dpi=300)
+ggsave("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/MS/PCA_PP_Plot.eps",plot=PCA_PolarPosFinal,device="eps",width=4,height=4, units = "in", dpi=300)
+
+#Run variation partitioning.
+PPvarPart <- varpart(dist.Metab,~Species,~Time,data=metaDvP)
+
+#Run adonis- Ignore time for now.
+condI <- data.frame("Condition"=mDataSplit.PP$X2, "Time"=mDataSplitTime.PP$X1)
+rownames(condI) <- rownames(dataNormt)
+adonis(dist.Metab ~ Condition, data=condI,permutations=999)
+#Strain-specific exometabolite composition differs (even without taking into account time)
+
+#Perform pairwise adonis post-hoc
+library("RVAideMemoire")
+#condI <- unite(condI, newcol, c(Condition, Time), remove=FALSE)
+pairwise.perm.manova(dist.Metab,condI$Cond,nperm=999,p.method="fdr")
+
+#####Perform Protest#####
+library(vegan)
+library(dplyr)
+
+#Extract PC1&2 for bio reps
+mod_sample.PCs <- as.data.frame(modScores$sites)
+#Add strains
+mod_sample.PCs$Strain <- mDataSplit.PP$X2
+#Add bioreps
+mod_sample.PCs$BR <- mDataSplitTime.PP$X2
+
+#Extract B. thailandensis PCA PC1 & PC2 scores
+BtPsR1 <- filter(mod_sample.PCs, Strain == "BtPs" & BR == "1")
+BtPsR2 <- filter(mod_sample.PCs, Strain == "BtPs" & BR == "2")
+BtPsR3 <- filter(mod_sample.PCs, Strain == "BtPs" & BR == "3")
+BtPsR4 <- filter(mod_sample.PCs, Strain == "BtPs" & BR == "4")
+
+#Extract B. thailandensis PCA PC1 & PC2 scores
+BtCvR1 <- filter(mod_sample.PCs, Strain == "BtCv" & BR == "1")
+BtCvR2 <- filter(mod_sample.PCs, Strain == "BtCv" & BR == "2")
+BtCvR3 <- filter(mod_sample.PCs, Strain == "BtCv" & BR == "3")
+BtCvR4 <- filter(mod_sample.PCs, Strain == "BtCv" & BR == "4")
+
+#Extract C. violaceum PCA PC1 & PC2 scores
+CvPsR1 <- filter(mod_sample.PCs, Strain == "CvPs" & BR == "1")
+CvPsR2 <- filter(mod_sample.PCs, Strain == "CvPs" & BR == "2")
+CvPsR3 <- filter(mod_sample.PCs, Strain == "CvPs" & BR == "3")
+CvPsR4 <- filter(mod_sample.PCs, Strain == "CvPs" & BR == "4")
+
+#Extract P. syringae PCA PC1 & PC2 scores
+FullR1 <- filter(mod_sample.PCs, Strain == "Full" & BR == "1")
+FullR2 <- filter(mod_sample.PCs, Strain == "Full" & BR == "2")
+FullR3 <- filter(mod_sample.PCs, Strain == "Full" & BR == "3")
+FullR4 <- filter(mod_sample.PCs, Strain == "Full" & BR == "4")
+
+#Perform protest for BtCv
+protest(X=BtCvR1[,1:2],Y=BtCvR2[,1:2])
+protest(X=BtCvR1[,1:2],Y=BtCvR3[,1:2])
+protest(X=BtCvR1[,1:2],Y=BtCvR4[,1:2])
+protest(X=BtCvR2[,1:2],Y=BtCvR3[,1:2])
+protest(X=BtCvR2[,1:2],Y=BtCvR4[,1:2])
+protest(X=BtCvR3[,1:2],Y=BtCvR4[,1:2])
+
+#Perform protest for BtPs
+protest(X=BtPsR1[,1:2],Y=BtPsR2[,1:2])
+protest(X=BtPsR1[,1:2],Y=BtPsR3[,1:2])
+protest(X=BtPsR1[,1:2],Y=BtPsR4[,1:2])
+protest(X=BtPsR2[,1:2],Y=BtPsR3[,1:2])
+protest(X=BtPsR2[,1:2],Y=BtPsR4[,1:2])
+protest(X=BtPsR3[,1:2],Y=BtPsR4[,1:2])
+
+#Perform protest for CvPs
+protest(X=CvPsR1[,1:2],Y=CvPsR2[,1:2])
+protest(X=CvPsR1[,1:2],Y=CvPsR3[,1:2])
+protest(X=CvPsR1[,1:2],Y=CvPsR4[,1:2])
+protest(X=CvPsR2[,1:2],Y=CvPsR3[,1:2])
+protest(X=CvPsR2[,1:2],Y=CvPsR4[,1:2])
+protest(X=CvPsR3[,1:2],Y=CvPsR4[,1:2])
+
+#Perform protest for Full
+protest(X=FullR1[,1:2],Y=FullR2[,1:2])
+protest(X=FullR1[,1:2],Y=FullR3[,1:2])
+protest(X=FullR1[,1:2],Y=FullR4[,1:2])
+protest(X=FullR2[,1:2],Y=FullR3[,1:2])
+protest(X=FullR2[,1:2],Y=FullR4[,1:2])
+protest(X=FullR3[,1:2],Y=FullR4[,1:2])
+
+
+
+
+
+###############################Perform Protest on the filtered features for each member####################################
+filt <- read.csv("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/MS/initialFiles/MZminePolarPoswExConForQC.csv",check.names=F)
+
+#Remove outlier-1mem_Bt_45hr-4
+filt_f <- filt[,-c(86)]
+
+#Load features
+FullFinalIDs <- readRDS("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/MS/outputFiles/FullFinalIDsPolarPos.rds")
+BtCvFinalIDs <- readRDS("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/MS/outputFiles/BtCvFinalIDsPolarPos.rds")
+BtPsFinalIDs <- readRDS("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/MS/outputFiles/BtPsFinalIDsPolarPos.rds")
+CvPsFinalIDs <- readRDS("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/MS/outputFiles/CvPsFinalIDsPolarPos.rds")
+
+FullFeatures <- filt_f[which(filt_f$ID %in% FullFinalIDs),]
+BtCvFeatures <- filt_f[which(filt_f$ID %in% BtCvFinalIDs),]
+BtPsFeatures <- filt_f[which(filt_f$ID %in% BtPsFinalIDs),]
+CvPsFeatures <- filt_f[which(filt_f$ID %in% CvPsFinalIDs),]
+
+
+library(tidyverse)
+#Combine RT and MZ columns so that we can match to dataNorm file
+FullFeaturesExt <- FullFeatures %>%
+  unite("Feature", RT:MZ, sep= "/",
+        remove = FALSE)
+
+BtCvFeaturesExt <- BtCvFeatures %>%
+  unite("Feature", RT:MZ, sep= "/",
+        remove = FALSE)
+
+BtPsFeaturesExt <- BtPsFeatures %>%
+  unite("Feature", RT:MZ, sep= "/",
+        remove = FALSE)
+
+CvPsFeaturesExt <- CvPsFeatures %>%
+  unite("Feature", RT:MZ, sep= "/",
+        remove = FALSE)
+
+#Extract features of interest from each coculture within the normalized file
+dataNorm.Full <- dataNorm[match(FullFeaturesExt$Feature,rownames(dataNorm)),]
+dataNorm.BtCv <- dataNorm[match(BtCvFeaturesExt$Feature,rownames(dataNorm)),]
+dataNorm.BtPs <- dataNorm[match(BtPsFeaturesExt$Feature,rownames(dataNorm)),]
+dataNorm.CvPs <- dataNorm[match(CvPsFeaturesExt$Feature,rownames(dataNorm)),]
+
+#Convert characters to numeric
+dataNorm.Full <- as.data.frame(lapply(dataNorm.Full, as.numeric))
+dataNorm.BtCv <- as.data.frame(lapply(dataNorm.BtCv, as.numeric))
+dataNorm.BtPs <- as.data.frame(lapply(dataNorm.BtPs, as.numeric))
+dataNorm.CvPs <- as.data.frame(lapply(dataNorm.CvPs, as.numeric))
+
+#Transpose
+dataNormt.Full <- t(dataNorm.Full)
+colnames(dataNormt.Full) <- rownames(dataNorm.Full) #newly added
+
+dataNormt.BtCv <- t(dataNorm.BtCv)
+colnames(dataNormt.BtCv) <- rownames(dataNorm.BtCv) #newly added
+
+dataNormt.BtPs <- t(dataNorm.BtPs)
+colnames(dataNormt.BtPs) <- rownames(dataNorm.BtPs) #newly added
+
+dataNormt.CvPs <- t(dataNorm.CvPs)
+colnames(dataNormt.CvPs) <- rownames(dataNorm.CvPs) #newly added
+
+#Select rows containing only coculture of interest
+dataNormt.Full.Ext <- dataNormt.Full[which(metaDvP$Species == "Full"),]
+dataNormt.BtCv.Ext <- dataNormt.Full[which(metaDvP$Species == "BtCv"),]
+dataNormt.BtPs.Ext <- dataNormt.Full[which(metaDvP$Species == "BtPs"),]
+dataNormt.CvPs.Ext <- dataNormt.Full[which(metaDvP$Species == "CvPs"),]
+
+
+
+#Load vegan
+library(vegan)
+dist.Metab.Full <- vegdist(dataNormt.Full.Ext, method="bray")
+dist.Metab.BtCv <- vegdist(dataNormt.BtCv.Ext, method="bray")
+dist.Metab.BtPs <- vegdist(dataNormt.BtPs.Ext, method="bray")
+dist.Metab.CvPs <- vegdist(dataNormt.CvPs.Ext, method="bray")
+
+#Extract groups from cocultures
+library(data.table)
+metaD.Full <- data.frame("Group"=metaD.PP[metaD.PP$Group %like% "Full", ])
+metaD.BtCv <- data.frame("Group"=metaD.PP[metaD.PP$Group %like% "BtCv", ])
+metaD.BtPs <- data.frame("Group"=metaD.PP[metaD.PP$Group %like% "BtPs", ])
+metaD.CvPs <- data.frame("Group"=metaD.PP[metaD.PP$Group %like% "CvPs", ])
+
+#Reform groups
+groups.Full <- c(metaD.Full$Group)
+groups.BtCv <- c(metaD.BtCv$Group)
+groups.BtPs <- c(metaD.BtPs$Group)
+groups.CvPs <- c(metaD.CvPs$Group)
+
+#Calculate betadisper
+mod.Full <- betadisper(dist.Metab.Full, groups.Full)
+mod.BtCv <- betadisper(dist.Metab.BtCv, groups.BtCv)
+mod.BtPs <- betadisper(dist.Metab.BtPs, groups.BtPs)
+mod.CvPs <- betadisper(dist.Metab.CvPs, groups.CvPs)
+
+#Note, groups was created before from the meta data table generated as preparation for the PCA
+
+#Extract scores
+modScores.Full <- scores(mod.Full)
+modScores.BtCv <- scores(mod.BtCv)
+modScores.BtPs <- scores(mod.BtPs)
+modScores.CvPs <- scores(mod.CvPs)
+
+#####Perform Protest#####
+library(vegan)
+library(dplyr)
+
+#Extract PC1&2 for bio reps
+mod_sample.PCs.Full <- as.data.frame(modScores.Full$sites)
+mod_sample.PCs.BtCv <- as.data.frame(modScores.BtCv$sites)
+mod_sample.PCs.BtPs <- as.data.frame(modScores.BtPs$sites)
+mod_sample.PCs.CvPs <- as.data.frame(modScores.CvPs$sites)
+
+#Add strains
+mod_sample.PCs.Full$Strain <- mDataSplit.PP$X2[which(metaDvP$Species == "Full")]
+mod_sample.PCs.BtCv$Strain <- mDataSplit.PP$X2[which(metaDvP$Species == "BtCv")]
+mod_sample.PCs.BtPs$Strain <- mDataSplit.PP$X2[which(metaDvP$Species == "BtPs")]
+mod_sample.PCs.CvPs$Strain <- mDataSplit.PP$X2[which(metaDvP$Species == "CvPs")]
+
+#Add bioreps
+mod_sample.PCs.Full$BR <- mDataSplitTime.PP$X2[which(metaDvP$Species == "Full")]
+mod_sample.PCs.BtCv$BR <- mDataSplitTime.PP$X2[which(metaDvP$Species == "BtCv")]
+mod_sample.PCs.BtPs$BR <- mDataSplitTime.PP$X2[which(metaDvP$Species == "BtPs")]
+mod_sample.PCs.CvPs$BR <- mDataSplitTime.PP$X2[which(metaDvP$Species == "CvPs")]
+
+#Extract B. thailandensis PCA PC1 & PC2 scores
+BtPsR1 <- filter(mod_sample.PCs.BtPs, Strain == "BtPs" & BR == "1")
+BtPsR2 <- filter(mod_sample.PCs.BtPs, Strain == "BtPs" & BR == "2")
+BtPsR3 <- filter(mod_sample.PCs.BtPs, Strain == "BtPs" & BR == "3")
+BtPsR4 <- filter(mod_sample.PCs.BtPs, Strain == "BtPs" & BR == "4")
+
+#Extract B. thailandensis PCA PC1 & PC2 scores
+BtCvR1 <- filter(mod_sample.PCs.BtCv, Strain == "BtCv" & BR == "1")
+BtCvR2 <- filter(mod_sample.PCs.BtCv, Strain == "BtCv" & BR == "2")
+BtCvR3 <- filter(mod_sample.PCs.BtCv, Strain == "BtCv" & BR == "3")
+BtCvR4 <- filter(mod_sample.PCs.BtCv, Strain == "BtCv" & BR == "4")
+
+#Extract C. violaceum PCA PC1 & PC2 scores
+CvPsR1 <- filter(mod_sample.PCs.CvPs, Strain == "CvPs" & BR == "1")
+CvPsR2 <- filter(mod_sample.PCs.CvPs, Strain == "CvPs" & BR == "2")
+CvPsR3 <- filter(mod_sample.PCs.CvPs, Strain == "CvPs" & BR == "3")
+CvPsR4 <- filter(mod_sample.PCs.CvPs, Strain == "CvPs" & BR == "4")
+
+#Extract P. syringae PCA PC1 & PC2 scores
+FullR1 <- filter(mod_sample.PCs.Full, Strain == "Full" & BR == "1")
+FullR2 <- filter(mod_sample.PCs.Full, Strain == "Full" & BR == "2")
+FullR3 <- filter(mod_sample.PCs.Full, Strain == "Full" & BR == "3")
+FullR4 <- filter(mod_sample.PCs.Full, Strain == "Full" & BR == "4")
+
+#Perform protest for BtCv
+protest(X=BtCvR1[,1:2],Y=BtCvR2[,1:2])
+protest(X=BtCvR1[,1:2],Y=BtCvR3[,1:2])
+protest(X=BtCvR1[,1:2],Y=BtCvR4[,1:2])
+protest(X=BtCvR2[,1:2],Y=BtCvR3[,1:2])
+protest(X=BtCvR2[,1:2],Y=BtCvR4[,1:2])
+protest(X=BtCvR3[,1:2],Y=BtCvR4[,1:2])
+
+#Perform protest for BtPs
+protest(X=BtPsR1[,1:2],Y=BtPsR2[,1:2])
+protest(X=BtPsR1[,1:2],Y=BtPsR3[,1:2])
+protest(X=BtPsR1[,1:2],Y=BtPsR4[,1:2])
+protest(X=BtPsR2[,1:2],Y=BtPsR3[,1:2])
+protest(X=BtPsR2[,1:2],Y=BtPsR4[,1:2])
+protest(X=BtPsR3[,1:2],Y=BtPsR4[,1:2])
+
+#Perform protest for CvPs
+protest(X=CvPsR1[,1:2],Y=CvPsR2[,1:2])
+protest(X=CvPsR1[,1:2],Y=CvPsR3[,1:2])
+protest(X=CvPsR1[,1:2],Y=CvPsR4[,1:2])
+protest(X=CvPsR2[,1:2],Y=CvPsR3[,1:2])
+protest(X=CvPsR2[,1:2],Y=CvPsR4[,1:2])
+protest(X=CvPsR3[,1:2],Y=CvPsR4[,1:2])
+
+#Perform protest for Full
+protest(X=FullR1[,1:2],Y=FullR2[,1:2])
+protest(X=FullR1[,1:2],Y=FullR3[,1:2])
+protest(X=FullR1[,1:2],Y=FullR4[,1:2])
+protest(X=FullR2[,1:2],Y=FullR3[,1:2])
+protest(X=FullR2[,1:2],Y=FullR4[,1:2])
+protest(X=FullR3[,1:2],Y=FullR4[,1:2])

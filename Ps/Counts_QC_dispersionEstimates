@@ -1,0 +1,93 @@
+library(DESeq2)
+#Load meta data and count matrix
+lib <- read.csv(file="initial_files/P-syringae_LIBRARIES.txt", sep="\t",header=TRUE)
+counts <- read.csv(file="initial_files/Psraw_counts_kallisoNCBI.txt",sep="\t",header=TRUE) #for NCBI
+
+#Remove rRNA, tRNA, and miscRNA
+library(rtracklayer)
+gff <- readGFF("initial_files/Psyringae_genomic.gff") #if NCBI
+CDS <- gff[gff$type=="CDS",]
+
+#For NCBI
+library(tidyr)
+library(dplyr)
+countsS <- counts %>% separate(target_id, c("gene","Locus"),1, sep = "-",remove=TRUE)
+countsS <- select(countsS,-c(gene))
+countsF <- countsS[which(countsS$Locus %in% CDS$locus_tag),] #For NCBI
+
+#remove non-numerical columns from count matrix
+genecounts <- countsF[2:ncol(countsF)]
+row.names(genecounts) <- countsF[,1]
+
+#Convert numeric to integers
+genecounts[1:ncol(genecounts)] <- lapply(genecounts[1:ncol(genecounts)],as.integer)
+
+#Replace NA values with 0s
+genecounts[is.na(genecounts)] <- 0
+
+#Remove 0 count genes
+genesZeroC <- rownames(genecounts)[which(rowSums(genecounts) == 0)]
+genesRemove <- c(genesZeroC)
+
+#Extract unique identifiers from each condition
+lib$libraryName = as.character(lib$libraryName)
+genecounts.sort=genecounts[,match(lib$libraryName, names(genecounts))]
+library(stringr)
+Extract <- c("3mem","Bt","Cv","mono")
+keywords <- str_extract(lib$sampleName, paste(Extract,collapse="|"))
+
+
+#Load mapping file
+mapping <- read.csv(file="initial_files/Ps_diffExp_all.csv",header=TRUE,sep=",")
+
+all <- which(keywords %in% c("3mem","Bt","Cv","mono"))
+samps <- as.vector(lib$sampleName[all])
+samples <- match(samps,lib$sampleName)
+geneMat <- genecounts.sort[,samples]
+genemat <- as.data.frame(geneMat)
+align <- as.vector(mapping[,1])
+
+
+#Align sample names between objects
+diffGenes =geneMat[,match(align, colnames(geneMat))]
+colnames(diffGenes) <- mapping$Code
+rownames(diffGenes) <- rownames(genecounts.sort)
+
+#Remove genes of interest- 0 genes to remove. Skip this or else matrix becomes empty.
+#diffGenes = diffGenes[-c(which(rownames(diffGenes) %in% genesRemove)),]
+#5853 > 5853 genes
+
+#Now, let's remove genes with less than 10 counts in 90% of the samples- 96 samples so 86 is ~90% of samples
+
+idx <- rowSums(diffGenes >= 10 ) >= 86
+
+
+diffGenesF <- diffGenes[idx,]
+#5853 > 5443 genes
+
+#Prepare files for DESEq analysis
+mapping$time <- as.factor(as.numeric(as.character(mapping$time)))
+ddsMat <- DESeqDataSetFromMatrix(countData = diffGenesF, colData=mapping, design= ~class + time + class:time)
+ddsMat$class <- relevel(ddsMat$class, ref = "con")
+ddsMat$time <- factor(ddsMat$time, levels=c("750","1500","1800","2100","2400","2700"))
+ddsMat <- DESeq(ddsMat, test="LRT", reduced = ~ time)
+
+
+#Extract dispersion and size factor estimates
+mcols(ddsMat,use.names=TRUE)[1:4,]
+
+#And finally, the values we want
+dispersions_deseq <- 1/(mcols(ddsMat)$dispersion)
+sizeEst_deseq <- sizeFactors(ddsMat)
+
+#Save these as objects
+saveRDS(dispersions_deseq, "dispersions_deseq_kallistoNCBI.rds")
+saveRDS(sizeEst_deseq, "sizeEst_deseq_kallistoNCBI.rds")
+saveRDS(diffGenesF,"diffGenesF_kallistoNCBI.rds")
+saveRDS(ddsMat,"Deseq2Results_kallistoNCBI.rds")
+
+#Write QC-filtered, normalized matrix
+normCounts <- counts(ddsMat, normalized=TRUE)
+write.csv(normCounts,"Ps_QCFiltered_normalizedCountMatrix_kallistoNCBI.csv")
+
+#Obtained sizeFactors and dispersion estimates. Ready for input into ImpulseDE2

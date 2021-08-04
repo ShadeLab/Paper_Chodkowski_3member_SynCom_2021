@@ -1,0 +1,73 @@
+#Burkholderia
+library(DESeq2)
+lib <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/B-thailandensis_LIBRARIES.txt", sep="\t",header=TRUE)
+counts <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/Btraw_counts_kallisoNCBI.txt",sep="\t",header=TRUE)
+mapping <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/Bt_diffExp_all.csv",header=TRUE,sep=",")
+
+ddsMat <- readRDS("diffExp/initial_files/Deseq2Results_kallistoNCBI.rds")
+#extract normalized counts
+#normCounts <- counts(ddsMat, normalized=T)
+
+#to look at any gene of interest, for example gene ID: 2727718074, row 646 in ddsMat- ddsMat[646]
+#fiss <- plotCounts(ddsMat, "BTH_I2415",intgroup = c("class","time"), returnData = TRUE)
+fiss <- plotCounts(ddsMat, "BTH_I1284",intgroup = c("class","time"), returnData = TRUE)
+
+#Convert time to hrs
+fiss$Time <- as.integer(as.numeric(as.character(fiss$time))/60)
+library(ggplot2)
+
+myplot <- ggplot(fiss,aes(x = Time, y = count, color = class, group = class)) + geom_point() +
+geom_smooth(se = FALSE, method = "loess") + labs(x="Time (h)",y=" Normalized transcript counts") +
+scale_color_manual(values=c("#D55E00", "#000000","#CC79A7","#F0E442")) +
+theme(legend.position = "none",axis.text=element_text(size=10),axis.title=element_text(size=14))
+
+#ggsave("Bt_BTH_I2415_TonB.eps",plot=myplot,device="eps",width=5,height=3, units="in",dpi=300)
+ggsave("Bt_BTH_I1284_dpsA.eps",plot=myplot,device="eps",width=5,height=3, units="in",dpi=300)
+
+
+
+library(DESeq2)
+lib <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/initial_files/Cviolaceum_LIBRARIES.txt", sep="\t",header=TRUE)
+counts <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/initial_files/Cvraw_counts_kallisoNCBI.txt",sep="\t",header=TRUE)
+mapping <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/initial_files/Cv_diffExp_all.csv",header=TRUE,sep=",")
+
+ddsMat <- readRDS("diffExp/initial_files/Deseq2Results_kallistoNCBI.rds")
+#extract normalized counts
+#normCounts <- counts(ddsMat, normalized=T)
+
+#to look at any gene of interest, for example gene ID: 2727718074, row 646 in ddsMat- ddsMat[646]
+fiss <- plotCounts(ddsMat, "CLV04_2968",intgroup = c("class","time"), returnData = TRUE)
+
+#Convert time to hrs
+fiss$Time <- as.integer(as.numeric(as.character(fiss$time))/60)
+library(ggplot2)
+myplot <- ggplot(fiss,aes(x = Time, y = count, color = class, group = class)) + geom_point() +
+geom_smooth(se = FALSE, method = "loess") + labs(x="Time (h)",y=" Normalized transcript counts") +
+  scale_color_manual(values=c("#0072B2", "#000000","#CC79A7","#56B4E9")) +
+  theme(legend.position = "none",axis.text=element_text(size=10),axis.title=element_text(size=14))
+
+ggsave("Cv_CLV04_2968_dpsA.eps",plot=myplot,device="eps",width=5,height=3, units="in",dpi=300)
+
+
+
+library(DESeq2)
+lib <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/initial_files/P-syringae_LIBRARIES.txt", sep="\t",header=TRUE)
+counts <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/initial_files/Psraw_counts_kallisoNCBI.txt",sep="\t",header=TRUE)
+mapping <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/initial_files/Ps_diffExp_all.csv",header=TRUE,sep=",")
+
+ddsMat <- readRDS("diffExp/initial_files/Deseq2Results_kallistoNCBI.rds")
+#extract normalized counts
+#normCounts <- counts(ddsMat, normalized=T)
+
+#to look at any gene of interest, for example gene ID: 2727718074, row 646 in ddsMat- ddsMat[646]
+fiss <- plotCounts(ddsMat, "PSPTO_1206",intgroup = c("class","time"), returnData = TRUE)
+
+#Convert time to hrs
+fiss$Time <- as.integer(as.numeric(as.character(fiss$time))/60)
+library(ggplot2)
+myplot <- ggplot(fiss,aes(x = Time, y = count, color = class, group = class)) + geom_point() +
+geom_smooth(se = FALSE, method = "loess") + labs(x="Time (h)",y=" Normalized transcript counts") +
+scale_color_manual(values=c("#009E73", "#000000","#F0E442","#56B4E9")) +
+theme(legend.position = "none",axis.text=element_text(size=10),axis.title=element_text(size=14))
+
+ggsave("Ps_PSPTO_1206_TonB.eps",plot=myplot,device="eps",width=5,height=3, units="in",dpi=300)

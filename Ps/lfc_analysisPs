@@ -1,0 +1,199 @@
+#####
+R version 3.5.0 (2018-04-23)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: CentOS Linux 7 (Core)
+
+Matrix products: default
+BLAS: /opt/software/R/3.5.0-iomkl-2018a-X11-20180131/lib64/R/lib/libR.so
+LAPACK: /opt/software/R/3.5.0-iomkl-2018a-X11-20180131/lib64/R/modules/lapack.so
+
+locale:
+ [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C
+ [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8
+ [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8
+ [7] LC_PAPER=en_US.UTF-8       LC_NAME=C
+ [9] LC_ADDRESS=C               LC_TELEPHONE=C
+[11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C
+
+attached base packages:
+[1] parallel  stats4    stats     graphics  grDevices utils     datasets
+[8] methods   base
+
+other attached packages:
+ [1] DESeq2_1.22.2               SummarizedExperiment_1.12.0
+ [3] DelayedArray_0.8.0          BiocParallel_1.16.1
+ [5] matrixStats_0.54.0          Biobase_2.42.0
+ [7] GenomicRanges_1.34.0        GenomeInfoDb_1.18.1
+ [9] IRanges_2.16.0              S4Vectors_0.20.1
+[11] BiocGenerics_0.28.0         ashr_2.2-7
+
+loaded via a namespace (and not attached):
+ [1] bit64_0.9-7            splines_3.5.0          foreach_1.4.4
+ [4] Formula_1.2-3          assertthat_0.2.0       latticeExtra_0.6-28
+ [7] blob_1.1.1             GenomeInfoDbData_1.2.0 RSQLite_2.1.1
+[10] pillar_1.3.1           backports_1.1.2        lattice_0.20-35
+[13] glue_1.3.0             digest_0.6.18          RColorBrewer_1.1-2
+[16] XVector_0.22.0         checkmate_1.8.5        colorspace_1.3-2
+[19] htmltools_0.3.6        Matrix_1.2-14          plyr_1.8.4
+[22] XML_3.98-1.16          pkgconfig_2.0.2        genefilter_1.64.0
+[25] zlibbioc_1.28.0        purrr_0.2.5            xtable_1.8-3
+[28] scales_1.0.0           htmlTable_1.12         tibble_1.4.2
+[31] annotate_1.60.0        ggplot2_3.1.0          nnet_7.3-12
+[34] lazyeval_0.2.1         survival_2.42-3        magrittr_1.5
+[37] crayon_1.3.4           memoise_1.1.0          doParallel_1.0.14
+[40] MASS_7.3-50            foreign_0.8-70         truncnorm_1.0-8
+[43] tools_3.5.0            data.table_1.12.0      stringr_1.3.1
+[46] locfit_1.5-9.1         munsell_0.5.0          cluster_2.0.7-1
+[49] AnnotationDbi_1.44.0   bindrcpp_0.2.2         compiler_3.5.0
+[52] rlang_0.3.1            grid_3.5.0             RCurl_1.95-4.11
+[55] iterators_1.0.10       rstudioapi_0.9.0       htmlwidgets_1.3
+[58] bitops_1.0-6           base64enc_0.1-3        gtable_0.2.0
+[61] codetools_0.2-15       DBI_1.0.0              R6_2.3.0
+[64] gridExtra_2.3          knitr_1.20             dplyr_0.7.8
+[67] bit_1.1-14             bindr_0.1.1            Hmisc_4.1-1
+[70] stringi_1.2.4          pscl_1.5.2             SQUAREM_2017.10-1
+[73] Rcpp_1.0.0             geneplotter_1.60.0     rpart_4.1-13
+[76] acepack_1.4.1          tidyselect_0.2.5
+#####
+
+library(DESeq2)
+lib <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/initial_files/P-syringae_LIBRARIES.txt", sep="\t",header=TRUE)
+counts <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/initial_files/Psraw_counts_kallisoNCBI.txt",sep="\t",header=TRUE)
+mapping <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/initial_files/Ps_diffExp_3mem.csv",header=TRUE,sep=",")
+
+#Load ddsMat OBJECT
+ddsMat <- readRDS("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/diffExp/initial_files/Deseq2Results_kallistoNCBI.rds")
+
+library(ashr)
+
+###Obtain log fold changes for a within a condition comparing to the first time point.
+
+#Mono fold changes within
+lfc_mono25_withinComparision_ToTime0 <- results(ddsMat, name="time_1500_vs_750")
+lfc_mono30_withinComparision_ToTime0 <- results(ddsMat, name="time_1800_vs_750")
+lfc_mono35_withinComparision_ToTime0 <- results(ddsMat, name="time_2100_vs_750")
+lfc_mono40_withinComparision_ToTime0 <- results(ddsMat, name="time_2400_vs_750")
+lfc_mono45_withinComparision_ToTime0 <- results(ddsMat, name="time_2700_vs_750")
+
+#3mem within compared to time initial
+lfc_3mem25_withinComparision_ToTime0 <- results(ddsMat, contrast=list(c("time_1500_vs_750","classexp_3mem.time1500")))
+lfc_3mem30_withinComparision_ToTime0 <- results(ddsMat, contrast=list(c("time_1800_vs_750","classexp_3mem.time1800")))
+lfc_3mem35_withinComparision_ToTime0 <- results(ddsMat, contrast=list(c("time_2100_vs_750","classexp_3mem.time2100")))
+lfc_3mem40_withinComparision_ToTime0 <- results(ddsMat, contrast=list(c("time_2400_vs_750","classexp_3mem.time2400")))
+lfc_3mem45_withinComparision_ToTime0 <- results(ddsMat, contrast=list(c("time_2700_vs_750","classexp_3mem.time2700")))
+
+#PsBt within compared to time initial
+lfc_PsBt25_withinComparision_ToTime0 <- results(ddsMat, contrast=list(c("time_1500_vs_750","classexp_Bt.time1500")))
+lfc_PsBt30_withinComparision_ToTime0 <- results(ddsMat, contrast=list(c("time_1800_vs_750","classexp_Bt.time1800")))
+lfc_PsBt35_withinComparision_ToTime0 <- results(ddsMat, contrast=list(c("time_2100_vs_750","classexp_Bt.time2100")))
+lfc_PsBt40_withinComparision_ToTime0 <- results(ddsMat, contrast=list(c("time_2400_vs_750","classexp_Bt.time2400")))
+lfc_PsBt45_withinComparision_ToTime0 <- results(ddsMat, contrast=list(c("time_2700_vs_750","classexp_Bt.time2700")))
+
+#PsCv within compared to time initial
+lfc_PsCv25_withinComparision_ToTime0 <- results(ddsMat, contrast=list(c("time_1500_vs_750","classexp_Cv.time1500")))
+lfc_PsCv30_withinComparision_ToTime0 <- results(ddsMat, contrast=list(c("time_1800_vs_750","classexp_Cv.time1800")))
+lfc_PsCv35_withinComparision_ToTime0 <- results(ddsMat, contrast=list(c("time_2100_vs_750","classexp_Cv.time2100")))
+lfc_PsCv40_withinComparision_ToTime0 <- results(ddsMat, contrast=list(c("time_2400_vs_750","classexp_Cv.time2400")))
+lfc_PsCv45_withinComparision_ToTime0 <- results(ddsMat, contrast=list(c("time_2700_vs_750","classexp_Cv.time2700")))
+
+###Obtain log fold changes for a condition compared to monoculture control at each timepoint
+
+#Ps-Full vs Ps_mono at each time point
+lfc_3memInt_comparedtoMonoInt <- results(ddsMat,name="class_exp_3mem_vs_con")
+lfc_3mem25_comparedtoMono25 <- results(ddsMat, contrast=list(c("class_exp_3mem_vs_con","classexp_3mem.time1500")))
+lfc_3mem30_comparedtoMono30 <- results(ddsMat, contrast=list(c("class_exp_3mem_vs_con","classexp_3mem.time1800")))
+lfc_3mem35_comparedtoMono35 <- results(ddsMat, contrast=list(c("class_exp_3mem_vs_con","classexp_3mem.time2100")))
+lfc_3mem40_comparedtoMono40 <- results(ddsMat, contrast=list(c("class_exp_3mem_vs_con","classexp_3mem.time2400")))
+lfc_3mem45_comparedtoMono45 <- results(ddsMat, contrast=list(c("class_exp_3mem_vs_con","classexp_3mem.time2700")))
+
+#PsBt vs Ps_mono at each time point
+lfc_PsBtInt_comparedtoMonoInt <- results(ddsMat,name="class_exp_Bt_vs_con")
+lfc_PsBt25_comparedtoMono25 <- results(ddsMat, contrast=list(c("class_exp_Bt_vs_con","classexp_Bt.time1500")))
+lfc_PsBt30_comparedtoMono30 <- results(ddsMat, contrast=list(c("class_exp_Bt_vs_con","classexp_Bt.time1800")))
+lfc_PsBt35_comparedtoMono35 <- results(ddsMat, contrast=list(c("class_exp_Bt_vs_con","classexp_Bt.time2100")))
+lfc_PsBt40_comparedtoMono40 <- results(ddsMat, contrast=list(c("class_exp_Bt_vs_con","classexp_Bt.time2400")))
+lfc_PsBt45_comparedtoMono45 <- results(ddsMat, contrast=list(c("class_exp_Bt_vs_con","classexp_Bt.time2700")))
+
+#PsCv vs Ps_mono at each time point
+lfc_PsCvInt_comparedtoMonoInt <- results(ddsMat,name="class_exp_Cv_vs_con")
+lfc_PsCv25_comparedtoMono25 <- results(ddsMat, contrast=list(c("class_exp_Cv_vs_con","classexp_Cv.time1500")))
+lfc_PsCv30_comparedtoMono30 <- results(ddsMat, contrast=list(c("class_exp_Cv_vs_con","classexp_Cv.time1800")))
+lfc_PsCv35_comparedtoMono35 <- results(ddsMat, contrast=list(c("class_exp_Cv_vs_con","classexp_Cv.time2100")))
+lfc_PsCv40_comparedtoMono40 <- results(ddsMat, contrast=list(c("class_exp_Cv_vs_con","classexp_Cv.time2400")))
+lfc_PsCv45_comparedtoMono45 <- results(ddsMat, contrast=list(c("class_exp_Cv_vs_con","classexp_Cv.time2700")))
+
+###Extract fold changes from conditions compared to monoculture control (with the monoculture exception)
+
+#Ps monoculture extraction of lfc at  each time point compared to t initial
+lfc_mono_25withinComparisionToTime0.fc <- lfc_mono25_withinComparision_ToTime0$log2FoldChange
+lfc_mono_30withinComparisionToTime0.fc <- lfc_mono30_withinComparision_ToTime0$log2FoldChange
+lfc_mono_35withinComparisionToTime0.fc <- lfc_mono35_withinComparision_ToTime0$log2FoldChange
+lfc_mono_40withinComparisionToTime0.fc <- lfc_mono40_withinComparision_ToTime0$log2FoldChange
+lfc_mono_45withinComparisionToTime0.fc <- lfc_mono45_withinComparision_ToTime0$log2FoldChange
+
+#3mem extraction of lfc at each time point compared to monoculture
+lfc_3memInt_comparedtoMonoInt.fc <- lfc_3memInt_comparedtoMonoInt$log2FoldChange
+lfc_3mem25_comparedtoMono25.fc <- lfc_3mem25_comparedtoMono25$log2FoldChange
+lfc_3mem30_comparedtoMono30.fc <- lfc_3mem30_comparedtoMono30$log2FoldChange
+lfc_3mem35_comparedtoMono35.fc <- lfc_3mem35_comparedtoMono35$log2FoldChange
+lfc_3mem40_comparedtoMono40.fc <- lfc_3mem40_comparedtoMono40$log2FoldChange
+lfc_3mem45_comparedtoMono45.fc <- lfc_3mem45_comparedtoMono45$log2FoldChange
+
+#PsBt extraction of lfc at each time point compared to monoculture
+lfc_PsBtInt_comparedtoMonoInt.fc <- lfc_PsBtInt_comparedtoMonoInt$log2FoldChange
+lfc_PsBt25_comparedtoMono25.fc <- lfc_PsBt25_comparedtoMono25$log2FoldChange
+lfc_PsBt30_comparedtoMono30.fc <- lfc_PsBt30_comparedtoMono30$log2FoldChange
+lfc_PsBt35_comparedtoMono35.fc <- lfc_PsBt35_comparedtoMono35$log2FoldChange
+lfc_PsBt40_comparedtoMono40.fc <- lfc_PsBt40_comparedtoMono40$log2FoldChange
+lfc_PsBt45_comparedtoMono45.fc <- lfc_PsBt45_comparedtoMono45$log2FoldChange
+
+#PsCv extraction of lfc at each time point compared to monoculture
+lfc_PsCvInt_comparedtoMonoInt.fc <- lfc_PsCvInt_comparedtoMonoInt$log2FoldChange
+lfc_PsCv25_comparedtoMono25.fc <- lfc_PsCv25_comparedtoMono25$log2FoldChange
+lfc_PsCv30_comparedtoMono30.fc <- lfc_PsCv30_comparedtoMono30$log2FoldChange
+lfc_PsCv35_comparedtoMono35.fc <- lfc_PsCv35_comparedtoMono35$log2FoldChange
+lfc_PsCv40_comparedtoMono40.fc <- lfc_PsCv40_comparedtoMono40$log2FoldChange
+lfc_PsCv45_comparedtoMono45.fc <- lfc_PsCv45_comparedtoMono45$log2FoldChange
+
+lfc_analysis <- data.frame(lfc_3memInt_comparedtoMonoInt.fc,lfc_3mem25_comparedtoMono25.fc,lfc_3mem30_comparedtoMono30.fc,
+                      lfc_3mem35_comparedtoMono35.fc,lfc_3mem40_comparedtoMono40.fc,lfc_3mem45_comparedtoMono45.fc,
+                      lfc_PsBtInt_comparedtoMonoInt.fc,lfc_PsBt25_comparedtoMono25.fc,lfc_PsBt30_comparedtoMono30.fc,
+                      lfc_PsBt35_comparedtoMono35.fc,lfc_PsBt40_comparedtoMono40.fc,lfc_PsBt45_comparedtoMono45.fc,
+                      lfc_PsCvInt_comparedtoMonoInt.fc,lfc_PsCv25_comparedtoMono25.fc,lfc_PsCv30_comparedtoMono30.fc,
+                      lfc_PsCv35_comparedtoMono35.fc,lfc_PsCv40_comparedtoMono40.fc,lfc_PsCv45_comparedtoMono45.fc)
+
+row.names(lfc_analysis) <- row.names(ddsMat)
+saveRDS(lfc_analysis,"lfc/output/lfc_analysis_kallisto.rds")
+
+#If we want to obtain differences in log2 fold changes when comparing each condition and time point to the same reference (mono_12.5hr)
+#However, all of our log2 fold changes are compared at each time point relative to monoculture control at the same time point
+#To obtain the log2 fold change comparing only to the mono_12.5hr reference, we can add log2 fold changes obtained from
+#within monoculture comparisions + between condition comparisons.
+#For example, log2fc (mono25/mono12.5) + log2fc(Full25/Mono25) = log2fc(Full25/mono12.5)
+#Now, let's obtain lfc changes for all timepoints compared to mono 12.5
+
+#3mem
+lfc_3memInt_VsMonoInt.fc <- lfc_3memInt_comparedtoMonoInt.fc
+lfc_3mem25_VsMonoInt.fc <- lfc_3mem25_comparedtoMono25.fc + lfc_mono_25withinComparisionToTime0.fc
+lfc_3mem30_VsMonoInt.fc <- lfc_3mem30_comparedtoMono30.fc + lfc_mono_30withinComparisionToTime0.fc
+lfc_3mem35_VsMonoInt.fc <- lfc_3mem35_comparedtoMono35.fc + lfc_mono_35withinComparisionToTime0.fc
+lfc_3mem40_VsMonoInt.fc <- lfc_3mem40_comparedtoMono40.fc + lfc_mono_40withinComparisionToTime0.fc
+lfc_3mem45_VsMonoInt.fc <- lfc_3mem45_comparedtoMono45.fc + lfc_mono_45withinComparisionToTime0.fc
+
+#PsBt
+lfc_PsBtInt_VsMonoInt.fc <- lfc_PsBtInt_comparedtoMonoInt.fc
+lfc_PsBt25_VsMonoInt.fc <- lfc_PsBt25_comparedtoMono25.fc + lfc_mono_25withinComparisionToTime0.fc
+lfc_PsBt30_VsMonoInt.fc <- lfc_PsBt30_comparedtoMono30.fc + lfc_mono_30withinComparisionToTime0.fc
+lfc_PsBt35_VsMonoInt.fc <- lfc_PsBt35_comparedtoMono35.fc + lfc_mono_35withinComparisionToTime0.fc
+lfc_PsBt40_VsMonoInt.fc <- lfc_PsBt40_comparedtoMono40.fc + lfc_mono_40withinComparisionToTime0.fc
+lfc_PsBt45_VsMonoInt.fc <- lfc_PsBt45_comparedtoMono45.fc + lfc_mono_45withinComparisionToTime0.fc
+
+#PsCv
+lfc_PsCvIntvsRef <- lfc_PsCvInt_comparedtoMonoInt.fc
+lfc_PsCv25_VsMonoInt.fc <- lfc_PsCv25_comparedtoMono25.fc + lfc_mono_25withinComparisionToTime0.fc
+lfc_PsCv30_VsMonoInt.fc <- lfc_PsCv30_comparedtoMono30.fc + lfc_mono_30withinComparisionToTime0.fc
+lfc_PsCv35_VsMonoInt.fc <- lfc_PsCv35_comparedtoMono35.fc + lfc_mono_35withinComparisionToTime0.fc
+lfc_PsCv40_VsMonoInt.fc <- lfc_PsCv40_comparedtoMono40.fc + lfc_mono_40withinComparisionToTime0.fc
+lfc_PsCv45_VsMonoInt.fc <- lfc_PsCv45_comparedtoMono45.fc + lfc_mono_45withinComparisionToTime0.fc
+
+save.image("lfc/output/PsyringaeLFC_kallisto.RData")

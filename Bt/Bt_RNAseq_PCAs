@@ -1,0 +1,264 @@
+###sessionInfo()
+R version 3.5.0 (2018-04-23)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: CentOS Linux 7 (Core)
+
+attached base packages:
+[1] parallel  stats4    stats     graphics  grDevices utils     datasets
+[8] methods   base
+
+other attached packages:
+ [1] RVAideMemoire_0.9-77        egg_0.4.5
+ [3] gridExtra_2.3               vegan_2.5-4
+ [5] lattice_0.20-35             permute_0.9-4
+ [7] ggplot2_3.3.3               tibble_3.0.6
+ [9] dplyr_1.0.4                 DESeq2_1.22.2
+[11] SummarizedExperiment_1.12.0 DelayedArray_0.8.0
+[13] BiocParallel_1.16.6         matrixStats_0.54.0
+[15] Biobase_2.42.0              GenomicRanges_1.34.0
+[17] GenomeInfoDb_1.18.2         IRanges_2.16.0
+[19] S4Vectors_0.20.1            BiocGenerics_0.28.0
+
+######################################################
+
+#Create PCA for each individual condition
+
+library(DESeq2)
+lib <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/B-thailandensis_LIBRARIES.txt", sep="\t",header=TRUE)
+counts <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/Btraw_counts_kallisoNCBI.txt",sep="\t",header=TRUE)
+mapping <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/Bt_diffExp_all.csv",header=TRUE,sep=",")
+
+lfc_analysis <- readRDS("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/lfc/output/lfc_analysis_kallisto.rds")
+lfc_analysis <- as.data.frame(lfc_analysis)
+
+library(dplyr)
+library(tibble)
+
+lfc_th <- lfc_analysis %>%
+    rownames_to_column(as.character('gene')) %>%
+    filter_if(is.numeric,any_vars(. > 1 | . < -1)) %>%
+    column_to_rownames('gene')
+
+ddsMat <- readRDS("diffExp/initial_files/Deseq2Results_kallistoNCBI.rds")
+resTC <- results(ddsMat)
+resTC <- resTC[which(row.names(resTC) %in% row.names(lfc_th)),]
+
+resTC <- resTC[complete.cases(resTC$padj),]
+resTC <- resTC[resTC$padj<0.01,]
+
+sigGen <- rownames(resTC)
+#norm <- counts(ddsMat, normalized=TRUE)
+
+#OBTAIN a normalized gene matrix of only significant genes below a FDR adjusted 0.05 threshold.
+ddsMat_sigGen <- ddsMat[which(rownames(assay(ddsMat)) %in% sigGen),]
+#normSigGen <- norm[which(rownames(norm) %in% sigGen),]
+
+
+#Remember, we are choosing to perform PCA with significant genes of interest- Significant from LRT analyses that includes all conditions of interest.
+
+#Find a better way choose these samples but for now, we want to plot the PCA from each condition.
+
+library(ggplot2)
+
+#PCA with Sig genes and conditions
+BtSigGenes_rld <- rlog(ddsMat_sigGen,blind=FALSE)
+
+pcaData <- plotPCA(BtSigGenes_rld, intgroup=c("class", "time"), returnData=TRUE)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+pcaData$class <- factor(pcaData$class,levels = c('exp_3mem','exp_Cv','exp_Ps','con'),ordered = TRUE)
+pc <- ggplot(pcaData, aes(PC1, PC2, color=factor(class))) +
+  geom_point(aes(size=time,fill=class),colour="black",pch=21) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+  scale_fill_manual(values=c("black", "brown2","darkgoldenrod2","cyan")) +
+  coord_fixed() +
+  theme(legend.position = "right",
+        axis.text = element_text(size=12),
+        axis.title = element_text(size=14))
+
+ggsave("BtPCA_sigGenes.eps",plot=pc,device="eps",width=30,height=30, units="cm",dpi=300)
+
+#Now, let's create PCAs by combining time points
+
+#Extract data table
+dataNorm <- assay(BtSigGenes_rld)
+#Transpose
+dataNorm.t <- t(dataNorm)
+
+#Load vegan
+library(vegan)
+dist.Metab <- vegdist(dataNorm.t, method="bray")
+
+#Create groups
+groups <- c(BtSigGenes_rld$factor)
+#Calculate betadisper
+mod <- betadisper(dist.Metab, groups)
+#Calculates spatial median, not center of mass
+
+#Variance explained should match individual plots from Metaboanalyst
+PC1var <- mod$eig[1]/sum(mod$eig) #Checks out
+PC2var <- mod$eig[2]/sum(mod$eig) #Checks out
+
+#Extract scores
+modScores <- scores(mod)
+
+#Extract centroid
+centroids <- as.data.frame(modScores$centroids)
+#Extract species and time info
+condI <- data.frame("group"=groups,"Condition"=BtSigGenes_rld$class, "Time"=BtSigGenes_rld$time)
+#Order by group
+condI <- condI[order(groups),]
+
+#Remove redundancies
+condI <- condI[!duplicated(condI),]
+#Add species
+centroids$Label <- condI$Condition
+#Add time
+centroids$Time <- condI$Time
+#Flip y-axis
+#centroids$PCoA2 <- centroids$PCoA2*-1
+
+#Extract axes vectors from individual samples
+sites <- as.data.frame(modScores$sites)
+#add groups
+sites$groups <- mod$group
+
+#Calculated PCoA axes SDs for each group
+ag <- aggregate(.~groups,sites, function(x) sd=sd(x))
+#Std axis 1
+sd_axis1.PP <- ag$PCoA1
+#Std axis 2
+sd_axis2.PP <- ag$PCoA2
+
+library(ggplot2)
+#library(repr)
+#options(repr.plot.width = 5, repr.plot.height = 3)
+#Change time from factor to numeric
+centroids$Time <- rep(c(12.5,25,30,35,40,45),4)
+
+library(egg)
+
+pcaPlot <- ggplot(centroids, aes(x=PCoA1, y=PCoA2,color=factor(Label)))+
+  geom_point(aes(size=factor(Time),fill=factor(Label)),colour="black",pch=21)+
+  xlab(label = paste("PC1"," (", format(round(PC1var,digits = 3)*100,nsmall=1), "% var. explained)", sep = ""))+
+  ylab(label = paste("PC2"," (", format(round(PC2var,digits = 3)*100,nsmall=1), "% var. explained)", sep = ""))+
+  scale_fill_manual(values=c("#D55E00", "#000000","#CC79A7","#F0E442")) +
+  coord_fixed() +
+  theme_bw()+
+  theme(axis.title = element_text(size = 10),axis.text = element_text(size = 8),legend.position = "none")
+
+pcaPlotFinal <- pcaPlot +
+  geom_segment(data=centroids, aes(x=PCoA1,xend=PCoA1+sd_axis1.PP,y=PCoA2,yend=PCoA2),size=0.07,colour="black")+
+  geom_segment(data=centroids, aes(x=PCoA1,xend=PCoA1-sd_axis1.PP,y=PCoA2,yend=PCoA2),size=0.07,colour="black")+
+  geom_segment(data=centroids, aes(x=PCoA1,xend=PCoA1,y=PCoA2,yend=PCoA2+sd_axis2.PP),size=0.07,colour="black")+
+  geom_segment(data=centroids, aes(x=PCoA1,xend=PCoA1,y=PCoA2,yend=PCoA2-sd_axis2.PP),size=0.07,colour="black")
+
+ggsave("BtPCA_sigGenes_combined.eps",plot=egg::set_panel_size(p=pcaPlotFinal,width=unit(4, "in"), height=unit(2.15, "in")),
+        device="eps", width=5,height=2.5, units="in",dpi=300)
+
+#Prep MetaData
+metaD <- data.frame("Condition"=BtSigGenes_rld$class, "Time"=BtSigGenes_rld$time)
+row.names(metaD) <- BtSigGenes_rld$Code
+
+#Run variation partitioning.
+PPvarPart <- varpart(dist.Metab,~Condition,~Time,data=metaD)
+#####Varpart when non-released replaced by NAs
+#Membership: 0.46260 #Time: 0.13237 #Membership x Time: 0.63106
+
+#Run adonis- Ignore time for now.
+condI <- data.frame("Condition"=BtSigGenes_rld$class, "Time"=BtSigGenes_rld$time)
+rownames(condI) <- rownames(dataNorm.t)
+adonis(dist.Metab ~ Condition, data=condI,permutations=999)
+#adonis(dist.Metab ~ Condition*Time, data=condI,permutations=999)
+#Strain-specific exometabolite composition differs (even without taking into account time)
+
+#Perform pairwise adonis post-hoc
+library("RVAideMemoire")
+#condI <- unite(condI, newcol, c(Condition, Time), remove=FALSE)
+pairwise.perm.manova(dist.Metab,condI$Cond,nperm=999,p.method="fdr")
+
+#Make the case for strong influence of B. thailandensis on Cv and Ps transcript profiles
+#Since Cv seems to contribute more to Bt transcript profile than Ps, let's see if combined data from BtCv and BtCvPs is
+#significantly different from combined Bt and BtPs data
+
+#Combining BtCv with BtCvPs and, Bt with BtPs
+condI$CondComb <- rep(c(rep("two",24),rep("one",24),rep("two",24),rep("one","22")))
+adonis(dist.Metab ~ CondComb, data=condI,permutations=999)
+#Significant 
+
+#Combining BtPs with BtCvPs and, Bt with BtCv
+condI$CondComb <- rep(c(rep("one",24),rep("two",24),rep("two",24),rep("one","22")))
+adonis(dist.Metab ~ CondComb, data=condI,permutations=999)
+#Also significant
+
+#####Perform Protest#####
+library(vegan)
+library(dplyr)
+
+#Prep metaData
+metaD.Member <- data.frame(do.call('rbind', strsplit(as.character(mapping$Condition),'-',fixed=TRUE)))
+metaD.BR <- data.frame(do.call('rbind', strsplit(as.character(mapping$Condition),'_',fixed=TRUE)))
+
+#Extract PC1&2 for bio reps
+mod_sample.PCs <- as.data.frame(modScores$sites)
+#Add strains
+mod_sample.PCs$Strain <- metaD.Member$X1
+#Add bioreps
+mod_sample.PCs$BR <- metaD.BR$X2
+
+#Extract BtCv PCA PC1 & PC2 scores
+BtCvR1 <- filter(mod_sample.PCs, Strain == "BtCv" & BR == "BR1")
+BtCvR2 <- filter(mod_sample.PCs, Strain == "BtCv" & BR == "BR2")
+BtCvR3 <- filter(mod_sample.PCs, Strain == "BtCv" & BR == "BR3")
+BtCvR4 <- filter(mod_sample.PCs, Strain == "BtCv" & BR == "BR4")
+
+#Extract BtPs PCA PC1 & PC2 scores
+BtPsR1 <- filter(mod_sample.PCs, Strain == "BtPs" & BR == "BR1")
+BtPsR2 <- filter(mod_sample.PCs, Strain == "BtPs" & BR == "BR2")
+BtPsR3 <- filter(mod_sample.PCs, Strain == "BtPs" & BR == "BR3")
+BtPsR4 <- filter(mod_sample.PCs, Strain == "BtPs" & BR == "BR4")
+
+#Extract Bt PCA PC1 & PC2 scores
+BtR1 <- filter(mod_sample.PCs, Strain == "Bt" & BR == "BR1")
+BtR2 <- filter(mod_sample.PCs, Strain == "Bt" & BR == "BR2")
+BtR3 <- filter(mod_sample.PCs, Strain == "Bt" & BR == "BR3")
+BtR4 <- filter(mod_sample.PCs, Strain == "Bt" & BR == "BR4")
+
+#Extract BtCvPs PCA PC1 & PC2 scores
+FullR1 <- filter(mod_sample.PCs, Strain == "BtCvPs" & BR == "BR1")
+FullR2 <- filter(mod_sample.PCs, Strain == "BtCvPs" & BR == "BR2")
+FullR3 <- filter(mod_sample.PCs, Strain == "BtCvPs" & BR == "BR3")
+FullR4 <- filter(mod_sample.PCs, Strain == "BtCvPs" & BR == "BR4")
+
+#Perform protest for BtCv
+protest(X=BtCvR1[,1:2],Y=BtCvR2[,1:2])
+protest(X=BtCvR1[,1:2],Y=BtCvR3[,1:2])
+protest(X=BtCvR1[,1:2],Y=BtCvR4[,1:2])
+protest(X=BtCvR2[,1:2],Y=BtCvR3[,1:2])
+protest(X=BtCvR2[,1:2],Y=BtCvR4[,1:2])
+protest(X=BtCvR3[,1:2],Y=BtCvR4[,1:2])
+
+#Perform protest for BtPs
+protest(X=BtPsR1[,1:2],Y=BtPsR2[,1:2])
+protest(X=BtPsR1[,1:2],Y=BtPsR3[,1:2])
+protest(X=BtPsR1[,1:2],Y=BtPsR4[,1:2])
+protest(X=BtPsR2[,1:2],Y=BtPsR3[,1:2])
+protest(X=BtPsR2[,1:2],Y=BtPsR4[,1:2])
+protest(X=BtPsR3[,1:2],Y=BtPsR4[,1:2])
+
+#Perform protest for Bt
+protest(X=BtR1[,1:2],Y=BtR2[1:5,1:2]) #missing 1 TP
+protest(X=BtR1[,1:2],Y=BtR3[1:5,1:2]) #missing 1 TP
+protest(X=BtR1[,1:2],Y=BtR4[1:5,1:2]) #missing 1 TP
+protest(X=BtR2[2:6,1:2],Y=BtR3[,1:2]) #missing 1 TP
+protest(X=BtR2[,1:2],Y=BtR4[,1:2])
+protest(X=BtR3[,1:2],Y=BtR4[2:6,1:2]) #missing 1 TP
+
+#Perform protest for Full
+protest(X=FullR1[,1:2],Y=FullR2[,1:2])
+protest(X=FullR1[,1:2],Y=FullR3[,1:2])
+protest(X=FullR1[,1:2],Y=FullR4[,1:2])
+protest(X=FullR2[,1:2],Y=FullR3[,1:2])
+protest(X=FullR2[,1:2],Y=FullR4[,1:2])
+protest(X=FullR3[,1:2],Y=FullR4[,1:2])

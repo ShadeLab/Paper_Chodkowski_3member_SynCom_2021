@@ -1,0 +1,187 @@
+###############Burkholderia##############################
+library(DESeq2)
+lib <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/B-thailandensis_LIBRARIES.txt", sep="\t",header=TRUE)
+counts <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/Btraw_counts_kallisoNCBI.txt",sep="\t",header=TRUE)
+mapping <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/Bt_diffExp_all.csv",header=TRUE,sep=",")
+BSGC <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/LocusTags_forBSGCs.csv",header=TRUE,sep=",")
+
+lfc_analysis <- readRDS("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/lfc/output/lfc_analysis_kallisto.rds")
+lfc_analysis <- as.data.frame(lfc_analysis)
+
+#Obtain genes of interest
+locusEx <- lfc_analysis[which(row.names(lfc_analysis) %in% BSGC$Locus),]
+
+#Add MetaData
+BSGC_Bt <- BSGC[BSGC$Member=="Bt",]
+#Remove missing data
+BSGC_Btf <- BSGC_Bt[which(BSGC_Bt$Locus %in% row.names(locusEx)),]
+
+#Order by locus
+BSGC_Btfo <- BSGC_Btf[order(BSGC_Btf$Locus),]
+
+#Double check all is well
+match(row.names(locusEx),BSGC_Btfo$Locus)
+
+data <- cbind(locusEx,BSGC_Btfo)
+
+library(reshape2)
+dataMelt <- melt(data)
+
+#Add membership
+dataMelt$Membership <- c(rep("BtCvPs",1026),rep("BtCv",1026),rep("BtPs",1026))
+#Add Time
+dataMelt$Time <- as.factor(rep(c(rep("12.5",171),rep("25",171),rep("30",171),rep("35",171),rep("40",171),rep("45",171)),3))
+
+#Average by BSGC, membership, and time
+library(dplyr)
+
+dataSum <- dataMelt %>%
+  group_by(BSGC,Membership,Time) %>%
+  summarize(mean = mean(value),sd=sd(value))
+
+#Add upregulated or downregulated
+dataSum$Regulation <- c(rep("downregulated",18),rep("downregulated",18),rep("upregulated",18),rep("upregulated",18),rep("downregulated",18),
+                        rep("upregulated",18),rep("downregulated",18),rep("downregulated",18),rep("upregulated",18),rep("downregulated",18),
+                        rep("downregulated",18),rep("upregulated",18),rep("upregulated",18),rep("upregulated",18),rep("downregulated",18),
+                        rep("downregulated",18),rep("downregulated",18),rep("downregulated",18),rep("upregulated",18),rep("upregulated",18),
+                        rep("upregulated",18),rep("downregulated",18),rep("downregulated",18),rep("downregulated",18),rep("downregulated",18),
+                        rep("downregulated",18),rep("upregulated",18),rep("downregulated",18))
+
+#Split data by up and downregulation
+dataSum_UP <- dataSum[dataSum$Regulation=="upregulated",]
+
+dataSum_DOWN <- dataSum[dataSum$Regulation=="downregulated",]
+
+#Plot
+library(ggplot2)
+dataSum_UP$Membership <- factor(dataSum_UP$Membership,levels = c('BtPs','BtCv','BtCvPs'),ordered = TRUE)
+p <- ggplot(dataSum_UP, aes(x=Time, y=mean)) +
+  geom_bar(stat="identity",fill="white",color="black") + facet_grid(BSGC ~ Membership,scales = "free") +
+  geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd), width=.2,
+                 position=position_dodge(.9))
+
+pp <- p + geom_hline(yintercept=1, linetype="dashed", color = "red") + labs (y="log2 fold change (relative to monoculture at each TP)", x = "Time (h)")
+
+ggsave("Bt_BSGCs_UpReg.eps",plot=pp,device="eps",width=30,height=30, units="cm",dpi=300)
+
+dataSum_DOWN$Membership <- factor(dataSum_DOWN$Membership,levels = c('BtPs','BtCv','BtCvPs'),ordered = TRUE)
+p <- ggplot(dataSum_DOWN, aes(x=Time, y=mean)) +
+  geom_bar(stat="identity",fill="white",color="black") + facet_grid(BSGC ~ Membership,scales = "free") +
+  geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd), width=.2,
+                 position=position_dodge(.9))
+
+pp <- p + geom_hline(yintercept=1, linetype="dashed", color = "red") + labs (y="log2 fold change (relative to monoculture at each TP)", x = "Time (h)")
+
+ggsave("Bt_BSGCs_DownReg.eps",plot=pp,device="eps",width=30,height=40, units="cm",dpi=300)
+
+################Chromobacterium##########################
+library(DESeq2)
+lib <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/initial_files/Cviolaceum_LIBRARIES.txt", sep="\t",header=TRUE)
+counts <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/initial_files/Cvraw_counts_kallisoNCBI.txt",sep="\t",header=TRUE)
+mapping <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/initial_files/Cv_diffExp_all.csv",header=TRUE,sep=",")
+BSGC <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/LocusTags_forBSGCs.csv",header=TRUE,sep=",")
+
+lfc_analysis <- readRDS("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/lfc/output/lfc_analysis_kallisto.rds")
+lfc_analysis <- as.data.frame(lfc_analysis)
+
+#Obtain genes of interest
+locusEx <- lfc_analysis[which(row.names(lfc_analysis) %in% BSGC$Locus),]
+
+#Add MetaData
+BSGC_Cv <- BSGC[BSGC$Member=="Cv",]
+#Remove missing data
+BSGC_Cvf <- BSGC_Cv[which(BSGC_Cv$Locus %in% row.names(locusEx)),]
+
+#Order by locus
+BSGC_Cvfo <- BSGC_Cvf[order(BSGC_Cvf$Locus),]
+
+#Double check all is well
+match(row.names(locusEx),BSGC_Cvfo$Locus)
+
+data <- cbind(locusEx,BSGC_Cvfo)
+
+library(reshape2)
+dataMelt <- melt(data)
+
+#Add membership
+dataMelt$Membership <- c(rep("CvPsBt",588),rep("CvBt",588),rep("CvPs",588))
+#Add Time
+dataMelt$Time <- as.factor(rep(c(rep("12.5",98),rep("25",98),rep("30",98),rep("35",98),rep("40",98),rep("45",98)),3))
+
+#Average by BSGC, membership, and time
+library(dplyr)
+
+dataSum <- dataMelt %>%
+  group_by(BSGC,Membership,Time) %>%
+  summarize(mean = mean(value),sd=sd(value))
+
+#Plot
+library(ggplot2)
+
+dataSum$Membership <- factor(dataSum$Membership,levels = c('CvPs','CvBt','CvPsBt'),ordered = TRUE)
+p <- ggplot(dataSum, aes(x=Time, y=mean)) +
+  geom_bar(stat="identity",fill="white",color="black") + facet_grid(BSGC ~ Membership,scales = "free") +
+  geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd), width=.2,
+                 position=position_dodge(.9))
+
+pp <- p + geom_hline(yintercept=1, linetype="dashed", color = "red") + labs (y="log2 fold change (relative to monoculture at each TP)", x = "Time (h)")
+
+ggsave("Cv_BSGCs.eps",plot=pp,device="eps",width=30,height=40, units="cm",dpi=300)
+
+
+##############Pseudomonas####################
+library(DESeq2)
+lib <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/initial_files/P-syringae_LIBRARIES.txt", sep="\t",header=TRUE)
+counts <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/initial_files/Psraw_counts_kallisoNCBI.txt",sep="\t",header=TRUE)
+mapping <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/initial_files/Ps_diffExp_all.csv",header=TRUE,sep=",")
+BSGC <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/LocusTags_forBSGCs.csv",header=TRUE,sep=",")
+
+lfc_analysis <- readRDS("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/lfc/output/lfc_analysis_kallisto.rds")
+lfc_analysis <- as.data.frame(lfc_analysis)
+
+library(dplyr)
+library(tibble)
+
+#Obtain genes of interest
+locusEx <- lfc_analysis[which(row.names(lfc_analysis) %in% BSGC$Locus),]
+
+#Add MetaData
+BSGC_Ps <- BSGC[BSGC$Member=="Ps",]
+#Remove missing data
+BSGC_Psf <- BSGC_Ps[which(BSGC_Ps$Locus %in% row.names(locusEx)),]
+
+#Order by locus
+BSGC_Psfo <- BSGC_Psf[order(BSGC_Psf$Locus),]
+
+#Double check all is well
+match(row.names(locusEx),BSGC_Psfo$Locus)
+
+data <- cbind(locusEx,BSGC_Psfo)
+
+library(reshape2)
+dataMelt <- melt(data)
+
+#Add membership
+dataMelt$Membership <- c(rep("PsBtCv",504),rep("PsBt",504),rep("PsCv",504))
+#Add Time
+dataMelt$Time <- as.factor(rep(c(rep("12.5",84),rep("25",84),rep("30",84),rep("35",84),rep("40",84),rep("45",84)),3))
+
+#Average by BSGC, membership, and time
+library(dplyr)
+
+dataSum <- dataMelt %>%
+  group_by(BSGC,Membership,Time) %>%
+  summarize(mean = mean(value),sd=sd(value))
+
+#Plot
+library(ggplot2)
+
+dataSum$Membership <- factor(dataSum$Membership,levels = c('PsCv','PsBt','PsBtCv'),ordered = TRUE)
+p <- ggplot(dataSum, aes(x=Time, y=mean)) +
+  geom_bar(stat="identity",fill="white",color="black") + facet_grid(BSGC ~ Membership,scales = "free") +
+  geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd), width=.2,
+                 position=position_dodge(.9))
+
+pp <- p + geom_hline(yintercept=1, linetype="dashed", color = "red") + labs (y="log2 fold change (relative to monoculture at each TP)", x = "Time (h)")
+
+ggsave("Ps_BSGCs.eps",plot=pp,device="eps",width=30,height=30, units="cm",dpi=300)

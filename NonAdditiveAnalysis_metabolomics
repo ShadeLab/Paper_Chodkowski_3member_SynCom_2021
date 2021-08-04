@@ -1,0 +1,464 @@
+permT <- read.csv(file="/mnt/home/chodkows/PermTest.csv",header=TRUE,sep=",")
+
+#load data
+metabData <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/NonAdditiveAnalysisMetabolomics.csv",header=TRUE,sep=",")
+
+#Extract BSGC of interest
+#permT <- metabData[metabData$Exometabolite=="Thailandamide",]
+permT <- metabData[metabData$Exometabolite=="Capistruin",]
+#permT <- metabData[metabData$Exometabolite=="Pyochelin",]
+
+
+library(tidyr)
+library(dplyr)
+
+#Split dataframes by pairwise cocultures
+permT.BtCv <- filter(permT, Membership=="BtCv")
+permT.BtPs <- filter(permT, Membership=="BtPs")
+
+
+#Group by time
+permT.BtCvG <- permT.BtCv %>% group_by(Time)
+permT.BtPsG <- permT.BtPs %>% group_by(Time)
+
+#Randomly sample rows without replacement. For thailandamide and pyochelin, 3 because of failed sample runs. For capistruin, 4.
+BtCv.samp <- sample_n(permT.BtCvG, 3, replace = FALSE)
+BtPs.samp <- sample_n(permT.BtPsG, 3, replace = FALSE)
+
+#Re-combine dataframes
+BtCv.samp$Value2 <- BtPs.samp$Value
+
+#Rename
+joinSamps <- BtCv.samp
+
+#Obtain sum, rowwise
+sumSamps <- joinSamps %>%
+              rowwise() %>%
+              summarise(Value = sum(c(Value,Value2)))
+
+summarise(sumSamps, mean=mean(Value), sd=sd(Value))
+
+#Make this a for loop to perform multiple iterations
+#Just running 100 to make sure I capture the combination with the max SD at least once.
+out=NULL
+for (i in 1:500) {
+BtCv.samp <- sample_n(permT.BtCvG, 4, replace = FALSE) #For thailandamide and pyochelin, 3 because of failed sample runs. For capistruin, 4.
+BtPs.samp <- sample_n(permT.BtPsG, 4, replace = FALSE) #For thailandamide and pyochelin, 3 because of failed sample runs. For capistruin, 4.
+
+#Re-combine dataframes
+BtCv.samp$Value2 <- BtPs.samp$Value
+
+#Rename
+joinSamps <- BtCv.samp
+
+#Obtain sum, rowwise
+sumSamps <- joinSamps %>%
+              rowwise() %>%
+              summarise(Value = sum(c(Value,Value2)))
+
+  df <- as.data.frame(summarise(sumSamps, sd=sd(Value)))
+  out=rbind(out,df)
+
+  max <- out %>% group_by(Time) %>%
+  summarise(max = max(sd, na.rm=TRUE))
+
+  if(df$sd[1]==max$max[1]){
+  df.TP1.maxSD <- sumSamps[sumSamps$Time=="12.5",]
+  }
+
+  if(df$sd[2]==max$max[2]){
+  df.TP2.maxSD <- sumSamps[sumSamps$Time=="25",]
+  }
+
+  if(df$sd[3]==max$max[3]){
+  df.TP3.maxSD <- sumSamps[sumSamps$Time=="30",]
+  }
+
+  if(df$sd[4]==max$max[4]){
+  df.TP4.maxSD <- sumSamps[sumSamps$Time=="35",]
+  }
+
+  if(df$sd[5]==max$max[5]){
+  df.TP5.maxSD <- sumSamps[sumSamps$Time=="40",]
+  }
+
+  if(df$sd[6]==max$max[6]){
+  df.TP6.maxSD <- sumSamps[sumSamps$Time=="45",]
+  }
+
+  coCulComb <- as.data.frame(rbind(df.TP1.maxSD,df.TP2.maxSD,df.TP3.maxSD,df.TP4.maxSD,df.TP5.maxSD,df.TP6.maxSD))
+}
+
+#Add membership column to combined dataset
+coCulComb$Membership <- "BtCv+BtPs"
+
+#Select columns of interest from original data
+permT.filt <- permT %>% select(Time, Value, Membership)
+
+#Combine dataframes containing Value, Membership, and Time.
+df.Final <- rbind(coCulComb,permT.filt)
+
+
+#Make time a factor
+df.Final$Time <- as.factor(df.Final$Time)
+library(ggplot2)
+
+df.Final$Membership <- factor(df.Final$Membership,levels = c("BtPs","BtCv","BtCv+BtPs","BtCvPs"),ordered = TRUE)
+p <- ggplot(df.Final, aes(x=Time, y=Value, fill=Membership)) +
+  scale_fill_manual(values=c("#F0E442","#CC79A7","#DEAD74","#000000")) +
+  theme_bw()+
+  geom_boxplot(color="darkgray")
+
+pp <- p + labs(y="Intensity (AU - Relativized to internal reference)", x = "Time (h)") +
+  theme(legend.position = "right",
+        axis.text = element_text(size=10),
+        axis.title = element_text(size=14),
+        plot.title = element_text(size=14),
+        legend.text = element_text(size=12))
+
+#save
+ggsave("Pyochelin_MetaboliteAbundance_NonadditiveUpProduction.eps",plot=pp,device="eps",width=30,height=30, units="cm",dpi=300)
+
+
+####Run two-way repeated measure anova on the time series
+
+#Tutorial found here: https://www.datanovia.com/en/lessons/repeated-measures-anova-in-r/
+library(tidyverse)
+library(ggpubr)
+library(rstatix)
+
+#Extract 3-member and combined coculture data
+vars <- c("BtCvPs", "BtCv+BtPs")
+df_ext <- filter(df.Final, Membership %in% vars)
+
+#Test needs even samples. Need to remove data where uneven
+#df_edit <- df_ext[-c(19,23),]  #for Thailandamide
+df_edit <- df_ext #None for Capistruin
+#df_edit <- df_ext[-c(19,23),]  #for Pyochelin
+
+#Add unique identifiers
+#df_edit$ID <- as.factor(rep(1:3,nrow(df_edit)/3)) #For thailandamide and pyochelin
+df_edit$ID <- as.factor(rep(1:4,nrow(df_edit)/4)) #For capistruin
+
+#Variance stabilize
+df_edit$Value <- log(df_edit$Value)
+
+#convert Membership to factor
+
+df_edit %>% anova_test( dv = Value, wid = ID,
+  within = c(Membership, Time)
+  )
+
+# Pairwise comparisons between treatment groups.
+#Unpaired becuse these are comparing across independent replicates from different community conditions.
+#It would be paired if I was interested in comparing time point 1 to time point 2 within a condition.
+pwc <- df_edit %>%
+  group_by(Time) %>%
+  pairwise_t_test(
+    Value ~ Membership, paired = FALSE,
+    p.adjust.method = "bonferroni"
+    )
+pwc
+
+#Run bonferroni correction after because of group_by
+
+
+#######################LFC analysis###################
+allMetabData <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/combinedMetabolomicsData.csv",header=TRUE,sep=",")
+
+#Remove first row
+allMetabData.edit <- allMetabData[c(-1),]
+#Melt
+library(reshape2)
+
+allMetabData.melt <- melt(allMetabData.edit ,id="X")
+
+#Add in member+time identifier
+allMetabData.melt$Member_Time <- rep(c(rep("Bt_1",74052),rep("Bt_2",74052),rep("Bt_3",74052),rep("Bt_4",74052),rep("Bt_5",74052),rep("Bt_6",74052),rep("BtCv_1",74052),rep("BtCv_2",74052),rep("BtCv_3",74052),rep("BtCv_4",74052),rep("BtCv_5",74052),rep("BtCv_6",74052),rep("BtPs_1",74052),rep("BtPs_2",74052),rep("BtPs_3",74052),rep("BtPs_4",74052),rep("BtPs_5",74052),rep("BtPs_6",74052),rep("Cv_1",74052),rep("Cv_2",74052),rep("Cv_3",74052),rep("Cv_4",74052),rep("Cv_5",74052),rep("Cv_6",74052),rep("CvPs_1",74052),rep("CvPs_2",74052),rep("CvPs_3",74052),rep("CvPs_4",74052),rep("CvPs_5",74052),rep("CvPs_6",74052),rep("Full_1",74052),rep("Full_2",74052),rep("Full_3",74052),rep("Full_4",74052),rep("Full_5",74052),rep("Full_6",74052),rep("Ps_1",74052),rep("Ps_2",74052),rep("Ps_3",74052),rep("Ps_4",74052),rep("Ps_5",74052),rep("Ps_6",74052)))
+
+#Convert values to numeric
+allMetabData.melt$value <- as.numeric(allMetabData.melt$value)
+
+#Undo cubed root transformation that was originally performed in MetaboAnalyst because of right skew (larger values are reduced to a greater degree than smaller values).
+#Cubed-root transformation was okay for heatmaps and PoCA analyses, but not for this analysis
+
+allMetabData.melt$value <- (allMetabData.melt$value)^3
+
+
+#Average by feature across all member and timepoint replicates
+library(dplyr)
+
+allMetabData.means <- allMetabData.melt %>% group_by(X, Member_Time) %>% summarise(mean=mean(value))
+
+#Add in member identifier
+allMetabData.means$Membership <- rep(c(rep("Bt",6),rep("BtCv",6),rep("BtPs",6),rep("Cv",6),rep("CvPs",6),rep("Full",6),rep("Ps",6)),18513)
+
+#Add in time identifier
+allMetabData.means$Time <- rep(rep(c("12.5","25","30","35","40","45"),129591))
+
+#Extract pairwise cocultures
+vars <- c("BtCv","BtPs","CvPs")
+allMetabData.pwCC <- filter(allMetabData.means, Membership %in% vars)
+
+#Additive sum across all pairwise cocultures
+allMetabData.additive <- allMetabData.pwCC %>% group_by(X, Time) %>% summarise(nullAdditive = sum(mean))
+
+#Sanity check that row names match
+fullMetabs <- allMetabData.means[allMetabData.means$Membership=="Full",]
+table(fullMetabs$X == allMetabData.additive$X)
+
+
+#Concatenate Full values
+allMetabData.additive$Full <- fullMetabs$mean
+
+
+#Calculate fold change of Full/nullAdditive values
+allMetabData.additive$FC <- allMetabData.additive$Full/allMetabData.additive$nullAdditive
+
+#Filter all values greater than a 1.5 FC within each feature
+nonAdditive.FC <- allMetabData.additive %>%
+    group_by(X) %>%
+    filter(FC > 1.5)
+
+#Filter by at least 3 occurrences.
+nonAdditive.FC.M <- nonAdditive.FC %>% group_by(X) %>% filter(n() > 3)
+
+#Obtain these from the original dataset
+finalNonAdditiveMetabs <- allMetabData[which(allMetabData$X %in% unique(nonAdditive.FC.M$X)),]
+
+#Add back first row
+finalNonAdditiveMetabs <- rbind(allMetabData[1,], finalNonAdditiveMetabs)
+
+#Write csv
+write.csv(finalNonAdditiveMetabs,"/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/SynCom_Paper_MassSpec/finalNonAdditiveMetabs_MetaboAnalystNormalization.csv")
+
+#Now let's create lfc histogram plots
+#Extract by timepoints
+allMetabData.additive
+allMetabData.additive.TP1 <- filter(allMetabData.additive, Time=="12.5")
+allMetabData.additive.TP2 <- filter(allMetabData.additive, Time=="25")
+allMetabData.additive.TP3 <- filter(allMetabData.additive, Time=="30")
+allMetabData.additive.TP4 <- filter(allMetabData.additive, Time=="35")
+allMetabData.additive.TP5 <- filter(allMetabData.additive, Time=="40")
+allMetabData.additive.TP6 <- filter(allMetabData.additive, Time=="45")
+
+
+#Calculate average FC
+mean(allMetabData.additive.TP1$FC) #0.5892065
+mean(allMetabData.additive.TP2$FC) #0.5846722
+mean(allMetabData.additive.TP3$FC) #0.6415615
+mean(allMetabData.additive.TP4$FC) #0.6990272
+mean(allMetabData.additive.TP5$FC) #0.536409
+mean(allMetabData.additive.TP6$FC) #0.6398831
+
+#Average FC across all TPs
+mean(c(0.5892065,0.5846722,0.6415615,0.6990272,0.536409,0.6398831)) #0.6151266
+
+#Extract fold-changes for thailandamide, pyochelin, and capistruin at TP45
+allMetabData.additive.TP6[allMetabData.additive.TP6$X=="5.114273183/718.430082",] #Thailandamide: 3.94 FC
+allMetabData.additive.TP6[allMetabData.additive.TP6$X=="4.810526341/325.0671729",] #Pyochelin: 3.04 FC
+allMetabData.additive.TP6[allMetabData.additive.TP6$X=="11.06912561/1025.019206",] #Capistruin: 0.666 FC
+
+#Calculate median FC
+#median(allMetabData.additive.TP1$FC)
+#median(allMetabData.additive.TP2$FC)
+#median(allMetabData.additive.TP3$FC)
+#median(allMetabData.additive.TP4$FC)
+#median(allMetabData.additive.TP5$FC)
+#median(allMetabData.additive.TP6$FC)
+
+#Variance stabilize and then Zscore
+allMetabData.additive.TP1$Zscore <- (log(allMetabData.additive.TP1$FC)-mean(log(allMetabData.additive.TP1$FC)))/sd(log(allMetabData.additive.TP1$FC))
+allMetabData.additive.TP2$Zscore <- (log(allMetabData.additive.TP2$FC)-mean(log(allMetabData.additive.TP2$FC)))/sd(log(allMetabData.additive.TP2$FC))
+allMetabData.additive.TP3$Zscore <- (log(allMetabData.additive.TP3$FC)-mean(log(allMetabData.additive.TP3$FC)))/sd(log(allMetabData.additive.TP3$FC))
+allMetabData.additive.TP4$Zscore <- (log(allMetabData.additive.TP4$FC)-mean(log(allMetabData.additive.TP4$FC)))/sd(log(allMetabData.additive.TP4$FC))
+allMetabData.additive.TP5$Zscore <- (log(allMetabData.additive.TP5$FC)-mean(log(allMetabData.additive.TP5$FC)))/sd(log(allMetabData.additive.TP5$FC))
+allMetabData.additive.TP6$Zscore <- (log(allMetabData.additive.TP6$FC)-mean(log(allMetabData.additive.TP6$FC)))/sd(log(allMetabData.additive.TP6$FC))
+
+#Extract thailandamide, capistruin, and pyochelin values
+#For thailandamide
+allMetabData.additive.TP1$Zscore[allMetabData.additive.TP1$X=="5.114273183/718.430082"] # 0.1085431
+allMetabData.additive.TP2$Zscore[allMetabData.additive.TP2$X=="5.114273183/718.430082"] # 1.057117
+allMetabData.additive.TP3$Zscore[allMetabData.additive.TP3$X=="5.114273183/718.430082"] # 1.753561
+allMetabData.additive.TP4$Zscore[allMetabData.additive.TP4$X=="5.114273183/718.430082"] # 1.773198
+allMetabData.additive.TP5$Zscore[allMetabData.additive.TP5$X=="5.114273183/718.430082"] # 1.77028
+allMetabData.additive.TP6$Zscore[allMetabData.additive.TP6$X=="5.114273183/718.430082"] # 2.032728
+
+#For Capistruin
+allMetabData.additive.TP1$Zscore[allMetabData.additive.TP1$X=="11.06912561/1025.019206"] # -0.07094311
+allMetabData.additive.TP2$Zscore[allMetabData.additive.TP2$X=="11.06912561/1025.019206"] # -0.4331011
+allMetabData.additive.TP3$Zscore[allMetabData.additive.TP3$X=="11.06912561/1025.019206"] #  0.6415301
+allMetabData.additive.TP4$Zscore[allMetabData.additive.TP4$X=="11.06912561/1025.019206"] #  1.922569
+allMetabData.additive.TP5$Zscore[allMetabData.additive.TP5$X=="11.06912561/1025.019206"] #  0.9269423
+allMetabData.additive.TP6$Zscore[allMetabData.additive.TP6$X=="11.06912561/1025.019206"] #  0.5547537
+
+#For Pyochelin
+allMetabData.additive.TP1$Zscore[allMetabData.additive.TP1$X=="4.810526341/325.0671729"] # -2.81445
+allMetabData.additive.TP2$Zscore[allMetabData.additive.TP2$X=="4.810526341/325.0671729"] #  2.450896
+allMetabData.additive.TP3$Zscore[allMetabData.additive.TP3$X=="4.810526341/325.0671729"] #  2.566838
+allMetabData.additive.TP4$Zscore[allMetabData.additive.TP4$X=="4.810526341/325.0671729"] #  2.206292
+allMetabData.additive.TP5$Zscore[allMetabData.additive.TP5$X=="4.810526341/325.0671729"] #  1.908089
+allMetabData.additive.TP6$Zscore[allMetabData.additive.TP6$X=="4.810526341/325.0671729"] #  1.816913
+
+#Plot histograms
+library(ggplot2)
+p.1 <-ggplot(allMetabData.additive.TP1, aes(x=Zscore))+
+  geom_histogram(color="black", fill="white") + scale_x_continuous(breaks=c(-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6),limits=c(-10.5,6.5)) +
+  scale_y_continuous(expand = c(0,0),limits = c(0,NA))
+
+p.2 <-ggplot(allMetabData.additive.TP2, aes(x=Zscore))+
+  geom_histogram(color="black", fill="white") + scale_x_continuous(breaks=c(-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6),limits=c(-10.5,6.5)) +
+  scale_y_continuous(expand = c(0,0),limits = c(0,NA))
+
+p.3 <-ggplot(allMetabData.additive.TP3, aes(x=Zscore))+
+  geom_histogram(color="black", fill="white") + scale_x_continuous(breaks=c(-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6),limits=c(-10.5,6.5)) +
+  scale_y_continuous(expand = c(0,0),limits = c(0,NA))
+
+p.4 <-ggplot(allMetabData.additive.TP4, aes(x=Zscore))+
+  geom_histogram(color="black", fill="white") + scale_x_continuous(breaks=c(-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6),limits=c(-10.5,6.5)) +
+  scale_y_continuous(expand = c(0,0),limits = c(0,NA))
+
+p.5 <-ggplot(allMetabData.additive.TP5, aes(x=Zscore))+
+  geom_histogram(color="black", fill="white") + scale_x_continuous(breaks=c(-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6),limits=c(-10.5,6.5)) +
+  scale_y_continuous(expand = c(0,0),limits = c(0,NA))
+
+p.6 <-ggplot(allMetabData.additive.TP6, aes(x=Zscore))+
+  geom_histogram(color="black", fill="white") + scale_x_continuous(breaks=c(-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6),limits=c(-10.5,6.5)) +
+  scale_y_continuous(expand = c(0,0),limits = c(0,NA))
+
+
+p.1.f <- p.1 +
+  geom_vline(xintercept = 0.1085431, color="#56B4E9",linetype="dashed",size=0.5) +
+  geom_vline(xintercept = -0.07094311, color="#D55E00",linetype="dashed",size=0.5) +
+  geom_vline(xintercept = -2.81445,color="#009E73",linetype="dashed",size=0.5)
+
+p.2.f <- p.2 +
+  geom_vline(xintercept = 1.057117, color="#56B4E9",linetype="dashed",size=0.5) +
+  geom_vline(xintercept = -0.4331011, color="#D55E00",linetype="dashed",size=0.5) +
+  geom_vline(xintercept = 2.450896,color="#009E73",linetype="dashed",size=0.5)
+
+p.3.f <- p.3 +
+  geom_vline(xintercept = 1.753561, color="#56B4E9",linetype="dashed",size=0.5) +
+  geom_vline(xintercept = 0.6415301, color="#D55E00",linetype="dashed",size=0.5) +
+  geom_vline(xintercept = 2.566838,color="#009E73",linetype="dashed",size=0.5)
+
+p.4.f <- p.4 +
+  geom_vline(xintercept = 1.773198, color="#56B4E9",linetype="dashed",size=0.5) +
+  geom_vline(xintercept = 1.922569, color="#D55E00",linetype="dashed",size=0.5) +
+  geom_vline(xintercept = 2.206292,color="#009E73",linetype="dashed",size=0.5)
+
+p.5.f <- p.5 +
+  geom_vline(xintercept = 1.77028, color="#56B4E9",linetype="dashed",size=0.5) +
+  geom_vline(xintercept = 0.9269423, color="#D55E00",linetype="dashed",size=0.5) +
+  geom_vline(xintercept = 1.908089,color="#009E73",linetype="dashed",size=0.5)
+
+p.6.f <- p.6 +
+  geom_vline(xintercept = 2.032728, color="#56B4E9",linetype="dashed",size=0.5) +
+  geom_vline(xintercept = 0.5547537, color="#D55E00",linetype="dashed",size=0.5) +
+  geom_vline(xintercept = 1.816913,color="#009E73",linetype="dashed",size=0.5)
+
+#Save plots
+ggsave("NonadditiveUpProduction_ZcoredFCplot.TP1.eps",plot=p.1.f,device="eps",width=5.5,height=1.25, units="in",dpi=300)
+ggsave("NonadditiveUpProduction_ZcoredFCplot.TP2.eps",plot=p.2.f,device="eps",width=5.5,height=1.25, units="in",dpi=300)
+ggsave("NonadditiveUpProduction_ZcoredFCplot.TP3.eps",plot=p.3.f,device="eps",width=5.5,height=1.25, units="in",dpi=300)
+ggsave("NonadditiveUpProduction_ZcoredFCplot.TP4.eps",plot=p.4.f,device="eps",width=5.5,height=1.25, units="in",dpi=300)
+ggsave("NonadditiveUpProduction_ZcoredFCplot.TP5.eps",plot=p.5.f,device="eps",width=5.5,height=1.25, units="in",dpi=300)
+ggsave("NonadditiveUpProduction_ZcoredFCplot.TP6.eps",plot=p.6.f,device="eps",width=5.5,height=1.25, units="in",dpi=300)
+
+
+
+
+
+
+##############################Practice analysis####################################
+
+permT <- read.csv(file="/mnt/home/chodkows/PermTest.csv",header=TRUE,sep=",")
+
+library(tidyr)
+library(dplyr)
+
+#Split dataframes by pairwise cocultures
+permT.BtCv <- permT %>% select(Time, BtCv)
+permT.BtPs <- permT %>% select(Time, BtPs)
+
+
+#Group by time
+permT.BtCvG <- permT.BtCv %>% group_by(Time)
+permT.BtPsG <- permT.BtPs %>% group_by(Time)
+
+#Randomly sample rows without replacement. For thailandamide and capistruin, 3 because of failed sample runs. For pyochelin, 4.
+BtCv.samp <- sample_n(permT.BtCvG, 4, replace = FALSE)
+BtPs.samp <- sample_n(permT.BtPsG, 4, replace = FALSE)
+
+#Re-combine dataframes
+BtCv.samp$BtPs <- BtPs.samp$BtPs
+
+#Rename
+joinSamps <- BtCv.samp
+
+#Obtain sum, rowwise
+sumSamps <- joinSamps %>%
+              rowwise() %>%
+              summarise(Value = sum(c(BtCv,BtPs)))
+
+summarise(sumSamps, mean=mean(Value), sd=sd(Value))
+
+#Make this a for loop to perform multiple iterations
+out=NULL
+for (i in 1:100) {
+BtCv.samp <- sample_n(permT.BtCvG, 4, replace = FALSE)
+BtPs.samp <- sample_n(permT.BtPsG, 4, replace = FALSE)
+
+#Re-combine dataframes
+BtCv.samp$BtPs <- BtPs.samp$BtPs
+
+#Rename
+joinSamps <- BtCv.samp
+
+#Obtain sum, rowwise
+sumSamps <- joinSamps %>%
+              rowwise() %>%
+              summarise(Value = sum(c(BtCv,BtPs)))
+
+  df <- as.data.frame(summarise(sumSamps, sd=sd(Value)))
+  out=rbind(out,df)
+
+  max <- out %>% group_by(Time) %>%
+  summarise(max = max(sd, na.rm=TRUE))
+
+  if(df$sd[1]==max$max[1]){
+  df.TP1.maxSD <- sumSamps[sumSamps$Time=="12.5",]
+  }
+
+  if(df$sd[2]==max$max[2]){
+  df.TP2.maxSD <- sumSamps[sumSamps$Time=="25",]
+  }
+
+  rbind(df.TP1.maxSD,df.TP2.maxSD)
+}
+
+#Extract by time
+out.TP1 <- out[out$Time=="12.5",]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###Old way
+#Perform all possible permutations across replicates
+#perms <- permT %>% group_by(Time) %>% expand(BtCv, BtPs)
+
+#Add additional group identifiers so that we don't select the same
+
+#Sample 4 random
+#permsG <- perms %>% group_by(Time)
+#sample_n(perms, 4, replace = FALSE)

@@ -1,0 +1,264 @@
+###sessionInfo()
+R version 3.5.0 (2018-04-23)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: CentOS Linux 7 (Core)
+
+attached base packages:
+[1] parallel  stats4    stats     graphics  grDevices utils     datasets
+[8] methods   base
+
+other attached packages:
+ [1] RVAideMemoire_0.9-77        egg_0.4.5
+ [3] gridExtra_2.3               vegan_2.5-4
+ [5] lattice_0.20-35             permute_0.9-4
+ [7] ggplot2_3.3.3               tibble_3.0.6
+ [9] dplyr_1.0.4                 DESeq2_1.22.2
+[11] SummarizedExperiment_1.12.0 DelayedArray_0.8.0
+[13] BiocParallel_1.16.6         matrixStats_0.54.0
+[15] Biobase_2.42.0              GenomicRanges_1.34.0
+[17] GenomeInfoDb_1.18.2         IRanges_2.16.0
+[19] S4Vectors_0.20.1            BiocGenerics_0.28.0
+
+######################################################
+
+#Create PCA for each individual condition
+
+library(DESeq2)
+lib <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/initial_files/Cviolaceum_LIBRARIES.txt", sep="\t",header=TRUE)
+counts <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/initial_files/Cvraw_counts_kallisoNCBI.txt",sep="\t",header=TRUE)
+mapping <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/initial_files/Cv_diffExp_all.csv",header=TRUE,sep=",")
+
+lfc_analysis <- readRDS("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/lfc/output/lfc_analysis_kallisto.rds")
+lfc_analysis <- as.data.frame(lfc_analysis)
+
+library(dplyr)
+library(tibble)
+
+lfc_th <- lfc_analysis %>%
+    rownames_to_column(as.character('gene')) %>%
+    filter_if(is.numeric,any_vars(. > 1 | . < -1)) %>%
+    column_to_rownames('gene')
+
+
+ddsMat <- readRDS("diffExp/initial_files/Deseq2Results_kallistoNCBI.rds")
+resTC <- results(ddsMat)
+resTC <- resTC[which(row.names(resTC) %in% row.names(lfc_th)),]
+
+resTC <- resTC[complete.cases(resTC$padj),]
+resTC <- resTC[resTC$padj<0.01,]
+
+sigGen <- rownames(resTC)
+#norm <- counts(ddsMat, normalized=TRUE)
+
+#OBTAIN a normalized gene matrix of only significant genes below a FDR adjusted 0.05 threshold.
+ddsMat_sigGen <- ddsMat[which(rownames(assay(ddsMat)) %in% sigGen),]
+
+#Remember, we are choosing to perform PCA with significant genes of interest- Significant from LRT analyses that includes all conditions of interest.
+
+#Find a better way choose these samples but for now, we want to plot the PCA from each condition.
+
+library(ggplot2)
+
+#PCA with Sig genes and conditions
+CvSigGenes_rld <- rlog(ddsMat_sigGen,blind=FALSE)
+pcaData <- plotPCA(CvSigGenes_rld, intgroup=c("class", "time"), returnData=TRUE)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+pcaData$class <- factor(pcaData$class,levels = c('exp_3mem','exp_Bt','exp_Ps','con'),ordered = TRUE)
+pc <- ggplot(pcaData, aes(PC1, PC2, color=factor(class))) +
+  geom_point(aes(size=time,fill=class),colour="black",pch=21) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+  scale_fill_manual(values=c("black", "brown2","burlywood4","blueviolet")) +
+  coord_fixed() +
+  theme(legend.position = "right",
+        axis.text = element_text(size=12),
+        axis.title = element_text(size=14))
+
+ggsave("CvPCA_sigGenes.eps",plot=pc,device="eps",width=30,height=30, units="cm",dpi=300)
+
+#Now, let's create PCAs by combining time points
+
+#Extract data table
+dataNorm <- assay(CvSigGenes_rld)
+#Transpose
+dataNorm.t <- t(dataNorm)
+
+#Load vegan
+library(vegan)
+dist.Metab <- vegdist(dataNorm.t, method="bray")
+
+#Create groups
+groups <- c(CvSigGenes_rld$factor)
+#Calculate betadisper
+mod <- betadisper(dist.Metab, groups)
+#Calculates spatial median, not center of mass
+
+#Variance explained should match individual plots from Metaboanalyst
+PC1var <- mod$eig[1]/sum(mod$eig) #Checks out
+PC2var <- mod$eig[2]/sum(mod$eig) #Checks out
+
+#Extract scores
+modScores <- scores(mod)
+
+#Extract centroid
+centroids <- as.data.frame(modScores$centroids)
+#Extract species and time info
+condI <- data.frame("group"=groups,"Condition"=CvSigGenes_rld$class, "Time"=CvSigGenes_rld$time)
+#Order by group
+condI <- condI[order(groups),]
+
+#Remove redundancies
+condI <- condI[!duplicated(condI),]
+#Add species
+centroids$Label <- condI$Condition
+#Add time
+centroids$Time <- condI$Time
+#Flip x-axis
+centroids$PCoA1 <- centroids$PCoA1*-1
+#Flip y-axis
+centroids$PCoA2 <- centroids$PCoA2*-1
+
+#Extract axes vectors from individual samples
+sites <- as.data.frame(modScores$sites)
+#add groups
+sites$groups <- mod$group
+
+#Calculated PCoA axes SDs for each group
+ag <- aggregate(.~groups,sites, function(x) sd=sd(x))
+#Std axis 1
+sd_axis1.PP <- ag$PCoA1
+#Std axis 2
+sd_axis2.PP <- ag$PCoA2
+
+library(ggplot2)
+#library(repr)
+#options(repr.plot.width = 5, repr.plot.height = 3)
+#Change time from factor to numeric
+centroids$Time <- rep(c(12.5,25,30,35,40,45),4)
+
+library(egg)
+
+pcaPlot <- ggplot(centroids, aes(x=PCoA1, y=PCoA2,color=factor(Label)))+
+  geom_point(aes(size=factor(Time),fill=factor(Label)),colour="black",pch=21)+
+  xlab(label = paste("PC1"," (", format(round(PC1var,digits = 3)*100,nsmall=1), "% var. explained)", sep = ""))+
+  ylab(label = paste("PC2"," (", format(round(PC2var,digits = 3)*100,nsmall=1), "% var. explained)", sep = ""))+
+  scale_fill_manual(values=c("#0072B2", "#000000","#CC79A7","#56B4E9")) +
+  coord_fixed() +
+  theme_bw()+
+  theme(axis.title = element_text(size = 10),axis.text = element_text(size = 8),legend.position = "none")
+
+pcaPlotFinal <- pcaPlot +
+  geom_segment(data=centroids, aes(x=PCoA1,xend=PCoA1+sd_axis1.PP,y=PCoA2,yend=PCoA2),size=0.07,colour="black")+
+  geom_segment(data=centroids, aes(x=PCoA1,xend=PCoA1-sd_axis1.PP,y=PCoA2,yend=PCoA2),size=0.07,colour="black")+
+  geom_segment(data=centroids, aes(x=PCoA1,xend=PCoA1,y=PCoA2,yend=PCoA2+sd_axis2.PP),size=0.07,colour="black")+
+  geom_segment(data=centroids, aes(x=PCoA1,xend=PCoA1,y=PCoA2,yend=PCoA2-sd_axis2.PP),size=0.07,colour="black")
+
+ggsave("CvPCA_sigGenes_combined.eps",plot=egg::set_panel_size(p=pcaPlotFinal,width=unit(4, "in"), height=unit(2.15, "in")),
+        device="eps", width=5,height=2.5, units="in",dpi=300)
+
+#Prep MetaData
+metaD <- data.frame("Condition"=CvSigGenes_rld$class, "Time"=CvSigGenes_rld$time)
+row.names(metaD) <- CvSigGenes_rld$Code
+#Run variation partitioning.
+PPvarPart <- varpart(dist.Metab,~Condition,~Time,data=metaD)
+#####Varpart when non-released replaced by NAs
+#Membership: 0.60604 #Time: 0.03875 #Membership x Time:0.68286
+
+#Run adonis- Ignore time for now.
+condI <- data.frame("Condition"=CvSigGenes_rld$class, "Time"=CvSigGenes_rld$time)
+rownames(condI) <- rownames(dataNorm.t)
+adonis(dist.Metab ~ Condition, data=condI,permutations=999)
+#adonis(dist.Metab ~ Condition*Time, data=condI,permutations=999)
+#Strain-specific exometabolite composition differs (even without taking into account time)
+
+#Perform pairwise adonis post-hoc
+library("RVAideMemoire")
+#condI <- unite(condI, newcol, c(Condition, Time), remove=FALSE)
+pairwise.perm.manova(dist.Metab,condI$Cond,nperm=999,p.method="fdr")
+
+#Make the case for strong influence of B. thailandensis on Cv and Ps transcript profiles
+#Since Bt seems to contribute more to Cv transcript profile than Ps in the full community, let's see if combined data from CvBt and CvBtPs is
+#significantly different from combined Cv and CvPs data
+
+#Combining CvBt with CvBtPs and, Cv with CvPs
+condI$CondComb <- rep(c(rep("one",23),rep("two",22),rep("one",23),rep("two","23")))
+adonis(dist.Metab ~ CondComb, data=condI,permutations=999)
+#Significant
+
+#Combining CvPs with CvBtPs and, Cv with CvBt
+condI$CondComb <- rep(c(rep("two",23),rep("one",22),rep("one",23),rep("two","23")))
+adonis(dist.Metab ~ CondComb, data=condI,permutations=999)
+#Not significant
+
+
+#####Perform Protest#####
+library(vegan)
+library(dplyr)
+
+#Prep metaData
+metaD.Member <- data.frame(do.call('rbind', strsplit(as.character(mapping$Condition),'-',fixed=TRUE)))
+metaD.BR <- data.frame(do.call('rbind', strsplit(as.character(mapping$Condition),'_',fixed=TRUE)))
+
+#Extract PC1&2 for bio reps
+mod_sample.PCs <- as.data.frame(modScores$sites)
+#Add strains
+mod_sample.PCs$Strain <- metaD.Member$X1
+#Add bioreps
+mod_sample.PCs$BR <- metaD.BR$X2
+
+#Extract CvBt PCA PC1 & PC2 scores
+CvBtR1 <- filter(mod_sample.PCs, Strain == "CvBt" & BR == "BR1")
+CvBtR2 <- filter(mod_sample.PCs, Strain == "CvBt" & BR == "BR2")
+CvBtR3 <- filter(mod_sample.PCs, Strain == "CvBt" & BR == "BR3")
+CvBtR4 <- filter(mod_sample.PCs, Strain == "CvBt" & BR == "BR4")
+
+#Extract CvPs PCA PC1 & PC2 scores
+CvPsR1 <- filter(mod_sample.PCs, Strain == "CvPs" & BR == "BR1")
+CvPsR2 <- filter(mod_sample.PCs, Strain == "CvPs" & BR == "BR2")
+CvPsR3 <- filter(mod_sample.PCs, Strain == "CvPs" & BR == "BR3")
+CvPsR4 <- filter(mod_sample.PCs, Strain == "CvPs" & BR == "BR4")
+
+#Extract Cv PCA PC1 & PC2 scores
+CvR1 <- filter(mod_sample.PCs, Strain == "Cv" & BR == "BR1")
+CvR2 <- filter(mod_sample.PCs, Strain == "Cv" & BR == "BR2")
+CvR3 <- filter(mod_sample.PCs, Strain == "Cv" & BR == "BR3")
+CvR4 <- filter(mod_sample.PCs, Strain == "Cv" & BR == "BR4")
+
+#Extract CvPsBt PCA PC1 & PC2 scores
+FullR1 <- filter(mod_sample.PCs, Strain == "CvPsBt" & BR == "BR1")
+FullR2 <- filter(mod_sample.PCs, Strain == "CvPsBt" & BR == "BR2")
+FullR3 <- filter(mod_sample.PCs, Strain == "CvPsBt" & BR == "BR3")
+FullR4 <- filter(mod_sample.PCs, Strain == "CvPsBt" & BR == "BR4")
+
+#Perform protest for CvBt
+protest(X=CvBtR1[1:5,1:2],Y=CvBtR2[,1:2]) #missing 1 TP
+protest(X=CvBtR1[,1:2],Y=CvBtR3[,1:2])
+protest(X=CvBtR1[,1:2],Y=CvBtR4[,1:2])
+protest(X=CvBtR2[,1:2],Y=CvBtR3[1:5,1:2]) #missing 1 TP
+protest(X=CvBtR2[,1:2],Y=CvBtR4[1:5,1:2]) #missing 1 TP
+protest(X=CvBtR3[,1:2],Y=CvBtR4[,1:2])
+
+#Perform protest for CvPs
+protest(X=CvPsR1[,1:2],Y=CvPsR2[1:5,1:2]) #missing 1 TP
+protest(X=CvPsR1[2:5,1:2],Y=CvPsR3[2:5,1:2]) #missing two TP, one for each
+protest(X=CvPsR1[,1:2],Y=CvPsR4[1:5,1:2]) #missing 1 TP
+protest(X=CvPsR2[2:6,1:2],Y=CvPsR3[,1:2]) #missing 1 TP
+protest(X=CvPsR2[,1:2],Y=CvPsR4[,1:2])
+protest(X=CvPsR3[,1:2],Y=CvPsR4[2:6,1:2]) #missing 1 TP
+
+#Perform protest for Cv
+protest(X=CvR1[,1:2],Y=CvR2[,1:2])
+protest(X=CvR1[c(1:4,6),1:2],Y=CvR3[,1:2]) #missing 1 TP
+protest(X=CvR1[,1:2],Y=CvR4[,1:2])
+protest(X=CvR2[c(1:4,6),1:2],Y=CvR3[,1:2]) #missing 1 TP
+protest(X=CvR2[,1:2],Y=CvR4[,1:2])
+protest(X=CvR3[,1:2],Y=CvR4[c(1:4,6),1:2]) #missing 1 TP
+
+#Perform protest for Full
+protest(X=FullR1[,1:2],Y=FullR2[,1:2])
+protest(X=FullR1[,1:2],Y=FullR3[,1:2])
+protest(X=FullR1[2:6,1:2],Y=FullR4[,1:2]) #missing 1 TP
+protest(X=FullR2[,1:2],Y=FullR3[,1:2])
+protest(X=FullR2[2:6,1:2],Y=FullR4[,1:2]) #missing 1 TP
+protest(X=FullR3[2:6,1:2],Y=FullR4[,1:2]) #missing 1 TP

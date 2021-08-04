@@ -1,0 +1,158 @@
+#Read in data
+Bt_BSGCquant <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/Bt_BSGC_Metabolomics.csv", sep=",",header=TRUE)
+
+#Make time a factor
+Bt_BSGCquant$Time <- as.factor(Bt_BSGCquant$Time)
+library(ggplot2)
+
+Bt_BSGCquant$Membership <- factor(Bt_BSGCquant$Membership,levels = c("Cv","Ps","CvPs","Bt","BtPs","BtCv","BtCvPs"),ordered = TRUE)
+p <- ggplot(Bt_BSGCquant, aes(x=Time, y=Value)) +
+  geom_boxplot()
+
+pp <- p + facet_grid(BSGC ~ Membership,scales = "free") + labs(y="Intensity (AU - Relativized to internal reference)", x = "Time (h)") +
+  theme(legend.position = "bottom",
+        axis.text = element_text(size=10),
+        axis.title = element_text(size=14),
+        plot.title = element_text(size=14),
+        legend.text = element_text(size=12))
+
+#save
+ggsave("Bt_BSGCs_MetaboliteAbundance.eps",plot=pp,device="eps",width=30,height=30, units="cm",dpi=300)
+
+#Perform anova between groups (forget time for simplification)
+library(dplyr)
+obj <- Bt_BSGCquant %>% group_by(BSGC) %>% do(model = aov(log(Value)~Membership, data = .))
+for(i in 1:nrow(obj)) {
+  print(i)
+  print(summary(obj$model[[i]]))
+  }
+
+obj <- Bt_BSGCquant %>% group_by(BSGC) %>% do(model = aov(log(Value)~Membership, data = .))
+TukeyHSD(obj$model[[1]])
+
+#Let's remove obvious different groups (Only compare Bt groups)
+BtGroupsOnly <- Bt_BSGCquant[grep("Bt", Bt_BSGCquant$Membership), ]
+obj_2 <- BtGroupsOnly %>% group_by(BSGC) %>% do(model = aov(log(Value)~Membership, data = .))
+for(i in 1:nrow(obj)) {
+  print(i)
+  print(summary(obj$model[[i]]))
+  }
+
+TukeyHSD(obj_2$model[[1]]) #Repeat with 2-6 to get remaining results for other exometabolites 
+
+#########END OF ANALYSIS######################
+
+
+
+
+######################Let's correlate MS signal to transcripts in the BSGCs###############
+
+#Average quantities by time
+library(dplyr)
+BtBSGC_avg  <- BtGroupsOnly %>% group_by(BSGC,Member_Time)%>%
+  summarize(mean = mean(Value))
+
+#Extract transcript info
+library(DESeq2)
+lib <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/B-thailandensis_LIBRARIES.txt", sep="\t",header=TRUE)
+counts <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/Btraw_counts_kallisoNCBI.txt",sep="\t",header=TRUE)
+mapping <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/Bt_diffExp_all.csv",header=TRUE,sep=",")
+BSGC <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/LocusTags_forBSGCs.csv",header=TRUE,sep=",")
+
+#Obtain genes of interest
+ddsMat <- readRDS("diffExp/initial_files/Deseq2Results_kallistoNCBI.rds")
+#obtain normalized counts
+norm <- counts(ddsMat, normalized=TRUE)
+#Extract loci of interest
+BSGCloci <- norm[which(row.names(norm) %in% BSGC$Locus),]
+
+#Replace col names with sample names
+match(colnames(BSGCloci),mapping$Code) #looks to be in the same order. Good
+#Now, rename columns
+colnames(BSGCloci) <- mapping$Condition
+
+library(reshape2)
+BSGCloci_melt <- melt(BSGCloci,value.name = "Value", varnames=c('Locus', 'Sample'))
+
+#Add additional metaData. Here, we'll add condition identifiers (Membership + Time)
+library(tidyr)
+BSGCloci_melt <- BSGCloci_melt %>% separate(Sample, c("Condition"), sep = "_",remove=FALSE)
+
+#Now let's add BSGCs to the dataframe. Make sure Loci across dfs match
+match(BSGCloci_melt$Locus,BSGC$Locus) #No
+
+#Remove missing loci from BSGC (Because they were filtered out of the transcripts)
+BSGCfilt <- BSGC[which(BSGC$Locus %in% BSGCloci_melt$Locus),]
+match(BSGCloci_melt$Locus,BSGCfilt$Locus) #All good
+
+#Add BSGCs (replicate by 94 because there are 94 samples)
+BSGCloci_melt$BSGC <- rep(BSGCfilt$BSGC,94)
+
+library(ggplot2)
+library(plyr)
+ggplot(BSGCloci_melt, aes(x=Locus, y=Value,fill=Condition))+
+  geom_boxplot()+
+  facet_grid(.~BSGC)+
+  labs(x="X (binned)")+
+  theme(axis.text.x=element_text(angle=-90, vjust=0.4,hjust=1))
+
+
+#Obtain mean transcripts across all biosynthetic genes involved in a BSGC
+library(dplyr)
+dataSum <- BSGCloci_melt %>%
+  group_by(BSGC,Condition,Locus) %>%
+  summarize(mean = mean(log10(Value)),sd=sd(log10(Value)))
+
+
+
+
+
+
+
+#Add MetaData
+BSGC_Bt <- BSGC[BSGC$Member=="Bt",]
+#Remove missing data
+BSGC_Btf <- BSGC_Bt[which(BSGC_Bt$Locus %in% row.names(locusEx)),]
+
+#Order by locus
+BSGC_Btfo <- BSGC_Btf[order(BSGC_Btf$Locus),]
+
+#Double check all is well
+match(row.names(locusEx),BSGC_Btfo$Locus)
+
+data <- cbind(locusEx,BSGC_Btfo)
+
+library(reshape2)
+dataMelt <- melt(data)
+
+#Add membership
+dataMelt$Membership <- c(rep("BtCvPs",1026),rep("BtCv",1026),rep("BtPs",1026))
+#Add Time
+dataMelt$Time <- as.factor(rep(c(rep("12.5",171),rep("25",171),rep("30",171),rep("35",171),rep("40",171),rep("45",171)),3))
+
+#Average by BSGC, membership, and time
+library(dplyr)
+
+dataSum <- dataMelt %>%
+  group_by(BSGC,Membership,Time) %>%
+  summarize(mean = mean(value),sd=sd(value))
+
+#Add upregulated or downregulated
+dataSum$Regulation <- c(rep("downregulated",18),rep("downregulated",18),rep("upregulated",18),rep("upregulated",18),rep("downregulated",18),
+                        rep("upregulated",18),rep("downregulated",18),rep("downregulated",18),rep("upregulated",18),rep("downregulated",18),
+                        rep("downregulated",18),rep("upregulated",18),rep("upregulated",18),rep("upregulated",18),rep("downregulated",18),
+                        rep("downregulated",18),rep("downregulated",18),rep("downregulated",18),rep("upregulated",18),rep("upregulated",18),
+                        rep("upregulated",18),rep("downregulated",18),rep("downregulated",18),rep("downregulated",18),rep("downregulated",18),
+                        rep("downregulated",18),rep("upregulated",18),rep("downregulated",18))
+
+#Split data by up and downregulation
+dataSum_UP <- dataSum[dataSum$Regulation=="upregulated",]
+
+#Keep only identified BSGCs from the transcripts
+target <- c("Bactobolin", "Capistruin", "Malleilactone","Pyochelin","Rhamnolipid-1","Thailandamide")
+#Rhamnolipids 1 and 2 had identical transcript responses. Just choosing one for simplicity
+
+transcriptsFilt <- filter(dataSum_UP, BSGC %in% target)
+
+
+BtBSGC_avg
