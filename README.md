@@ -3,6 +3,7 @@
 # Bioactive exometabolites involved in competition strategies drive community member dynamics over stationary phase.
 ---
 ## By John Chodkowski and Ashley Shade
+---
 *This work is unpublished*
 ---
 
