@@ -1,13 +1,9 @@
-# Github repository for 
----
+## Github repository for 
 # Bioactive exometabolites drive maintenance competition in simple bacterial communities 
----
 ## By John Chodkowski and Ashley Shade
----
 *This work is available as a preprint*
----
-
-## Place bioRxiv link, here
+## To cite this work or code
+Chodkowski JL and A Shade.  2021.  Bioactive exometabolites drive maintenance competition in simple bacterial communities. BioRXiv.  https://doi.org/10.1101/2021.09.05.459016
 
 ## Data
 Genomics, metabolomics, and transcriptomics data are available at Joint Genomes Institute Portal (https://genome.jgi.doe.gov/portal/) under JGI Proposal ID 502921
