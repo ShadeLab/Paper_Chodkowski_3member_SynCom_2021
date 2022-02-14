@@ -22,8 +22,8 @@ permT.BtCvG <- permT.BtCv %>% group_by(Time)
 permT.BtPsG <- permT.BtPs %>% group_by(Time)
 
 #Randomly sample rows without replacement. For thailandamide and pyochelin, 3 because of failed sample runs. For capistruin, 4.
-BtCv.samp <- sample_n(permT.BtCvG, 3, replace = FALSE)
-BtPs.samp <- sample_n(permT.BtPsG, 3, replace = FALSE)
+BtCv.samp <- sample_n(permT.BtCvG, 4, replace = FALSE)
+BtPs.samp <- sample_n(permT.BtPsG, 4, replace = FALSE)
 
 #Re-combine dataframes
 BtCv.samp$Value2 <- BtPs.samp$Value
@@ -109,15 +109,18 @@ p <- ggplot(df.Final, aes(x=Time, y=Value, fill=Membership)) +
   theme_bw()+
   geom_boxplot(color="darkgray")
 
+
 pp <- p + labs(y="Intensity (AU - Relativized to internal reference)", x = "Time (h)") +
-  theme(legend.position = "right",
-        axis.text = element_text(size=10),
-        axis.title = element_text(size=14),
-        plot.title = element_text(size=14),
-        legend.text = element_text(size=12))
+  theme(legend.position = "bottom",
+        axis.text = element_text(size=16),
+        axis.title = element_text(size=18),
+        legend.text = element_text(size=14),
+        legend.title = element_text(size=14))
+
+library(svglite)
 
 #save
-ggsave("Pyochelin_MetaboliteAbundance_NonadditiveUpProduction.eps",plot=pp,device="eps",width=30,height=30, units="cm",dpi=300)
+ggsave("Capistruin_MetaboliteAbundance_NonadditiveUpProduction.svg",plot=pp,width=30,height=30, units="cm",dpi=300)
 
 
 ####Run two-way repeated measure anova on the time series

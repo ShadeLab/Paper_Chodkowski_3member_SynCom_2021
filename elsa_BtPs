@@ -1,0 +1,116 @@
+#Read in library files
+lib_Bt <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/B-thailandensis_LIBRARIES.txt", sep="\t",header=TRUE)
+lib_Ps <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/initial_files/P-syringae_LIBRARIES.txt", sep="\t",header=TRUE)
+
+#Read in mapping files
+mapping_Bt <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/Bt_diffExp_all.csv",header=TRUE,sep=",")
+mapping_Ps <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/initial_files/Ps_diffExp_all.csv",header=TRUE,sep=",")
+
+#Read in normalized transcripts
+norm_bt <- read.csv("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/diffExp/initial_files/Bt_QCFiltered_normalizedCountMatrix_kallistoNCBI.csv",row.names=1)
+norm_ps <- read.csv("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/diffExp/initial_files/Ps_QCFiltered_normalizedCountMatrix_kallistoNCBI.csv",row.names=1)
+
+#Obtain BtCv co-culture samples
+Bt_ps <- lib_Bt[lib_Bt$Condition=="Pseudo",]
+
+Ps_bt <- lib_Ps[lib_Ps$Condition=="Burk",]
+
+Bt_norm <- t(norm_bt[,which(colnames(norm_bt) %in% Bt_ps$libraryName)])
+Ps_norm <- t(norm_ps[,which(colnames(norm_ps) %in% Ps_bt$libraryName)])
+
+#Double check both Bt_ps and Ps_bt. No samples are missing. Good.
+#In Cv_norm, TP45-R2 would be located at row 12. This corresponds to libraryName "BXNYA" for B. thailandensis.
+
+#Combine data frames
+norm_BtPs <- cbind(Bt_norm,Ps_norm)
+
+#Right now, we are organized by each time series. However, we want to organize the dataframe by all replicates at each time point.
+
+#Extract samples from mapping file
+
+mappingBt_ps <- mapping_Bt[match(Bt_ps$libraryName,mapping_Bt$Code),]
+
+#Order by time point and BioRep
+mapping_Ordered <- mappingBt_ps[order(mappingBt_ps$time,mappingBt_ps$Ind),]
+
+#Now re-order the gene matrix
+norm_BtPs <- norm_BtPs[order(match(rownames(norm_BtPs), mapping_Ordered$Code)),]
+
+
+#Double check that the time series and replicates are in order
+Bt_ps[match(rownames(norm_BtPs),Bt_ps$libraryName),]
+
+#All looks well!
+
+#Transpose
+norm_BtPs_t <- t(norm_BtPs)
+
+#Let's parse out genes that contained interspecies edges
+
+#Load network file containing gene-gene edges
+
+nwEdges <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Networks/BtPs_Network_500perms_CLR_4.5.csv",header=FALSE,sep=",")
+
+#Split column by space delimiter
+require(dplyr)
+require(tidyr)
+
+df.edges <- nwEdges %>% separate(V1, sep = " ", into = c("V1","V2","V3"), remove = TRUE)
+
+#We want to obtain genes with interspecies edges
+#Filter for Bt genes in column 1
+df.edges.Bt <- df.edges[grep("BTH", df.edges$V1), ]
+
+#Filter for Ps genes in column 3 from Bt filtered genes in column 1
+df.edges.BtPs <- df.edges.Bt[grep("PSPTO", df.edges.Bt$V3), ]
+
+#Obtain unique Bt and Ps genes
+genesOI <- c(unique(df.edges.BtPs$V1),unique(df.edges.BtPs$V3))
+
+#Filter out interspecies genes of interest (genesOI) from the gene matrix object
+
+norm_BtPs_t.final <- norm_BtPs_t[which(rownames(norm_BtPs_t) %in% genesOI),]
+
+#Double check all is well
+match(genesOI[order(genesOI)],rownames(norm_BtPs_t.final))
+#Looks good!
+
+#Create new column names in accordance to eLSA standards
+
+#create times
+tps <- rep(c("t1","t2","t3","t4","t5","t6"),c(4,4,4,4,4,4))
+
+#create replicates
+bioR <- rep(c("r1","r2","r3","r4"),6)
+
+#Combine new identifiers
+IDs <- paste(tps,bioR,sep = "")
+
+#Replace column names with new identifiers
+colnames(norm_BtPs_t.final) <- IDs
+
+#Add "#" to top left cell
+cat("#BtPs", file = "BtPs_eLSA.tsv")
+
+#Write tsv file
+BtPs_eLSA_table <- write.table(norm_BtPs_t.final, "BtPs_eLSA.tsv", quote = FALSE, sep = "\t", append = TRUE, col.names = NA)
+
+##### Now, let's make sure this is the correct data format for eLSA
+
+#From shell
+
+cd /mnt/home/chodkows/elsa
+conda activate elsa01
+
+pip install numpy
+pip install scipy
+python setup.py install
+
+#Check data file
+check_data -h /mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Networks/Minet/BtCv/BtCv_eLSA.tsv repNum=4 spotNum=6
+
+#All seems well
+
+#Let's run eLSA
+
+lsa_compute /mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Networks/Minet/BtCv/BtCv_eLSA.tsv BtCv_eLSA.lsa.tsv -d 1 -m 0 -p mix -r 4 -s 6

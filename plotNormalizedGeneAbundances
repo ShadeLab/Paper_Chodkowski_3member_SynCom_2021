@@ -10,7 +10,16 @@ ddsMat <- readRDS("diffExp/initial_files/Deseq2Results_kallistoNCBI.rds")
 
 #to look at any gene of interest, for example gene ID: 2727718074, row 646 in ddsMat- ddsMat[646]
 #fiss <- plotCounts(ddsMat, "BTH_I2415",intgroup = c("class","time"), returnData = TRUE)
-fiss <- plotCounts(ddsMat, "BTH_I1284",intgroup = c("class","time"), returnData = TRUE)
+#fiss <- plotCounts(ddsMat, "BTH_I1284",intgroup = c("class","time"), returnData = TRUE)
+#fiss <- plotCounts(ddsMat, "BTH_I2924",intgroup = c("class","time"), returnData = TRUE)
+
+fiss <- plotCounts(ddsMat, "BTH_I1965",intgroup = c("class","time"), returnData = TRUE)
+fiss <- plotCounts(ddsMat, "BTH_II0565",intgroup = c("class","time"), returnData = TRUE)
+fiss <- plotCounts(ddsMat, "BTH_II1076",intgroup = c("class","time"), returnData = TRUE)
+BTH_II1237
+fiss <- plotCounts(ddsMat, "BTH_II1237",intgroup = c("class","time"), returnData = TRUE)
+
+
 
 #Convert time to hrs
 fiss$Time <- as.integer(as.numeric(as.character(fiss$time))/60)
@@ -19,7 +28,8 @@ library(ggplot2)
 myplot <- ggplot(fiss,aes(x = Time, y = count, color = class, group = class)) + geom_point() +
 geom_smooth(se = FALSE, method = "loess") + labs(x="Time (h)",y=" Normalized transcript counts") +
 scale_color_manual(values=c("#D55E00", "#000000","#CC79A7","#F0E442")) +
-theme(legend.position = "none",axis.text=element_text(size=10),axis.title=element_text(size=14))
+theme(legend.position = "right",axis.text=element_text(size=10),axis.title=element_text(size=14))
+#theme(legend.position = "none",axis.text=element_text(size=10),axis.title=element_text(size=14))
 
 #ggsave("Bt_BTH_I2415_TonB.eps",plot=myplot,device="eps",width=5,height=3, units="in",dpi=300)
 ggsave("Bt_BTH_I1284_dpsA.eps",plot=myplot,device="eps",width=5,height=3, units="in",dpi=300)
@@ -60,7 +70,8 @@ ddsMat <- readRDS("diffExp/initial_files/Deseq2Results_kallistoNCBI.rds")
 #normCounts <- counts(ddsMat, normalized=T)
 
 #to look at any gene of interest, for example gene ID: 2727718074, row 646 in ddsMat- ddsMat[646]
-fiss <- plotCounts(ddsMat, "PSPTO_1206",intgroup = c("class","time"), returnData = TRUE)
+#fiss <- plotCounts(ddsMat, "PSPTO_1206",intgroup = c("class","time"), returnData = TRUE)
+fiss <- plotCounts(ddsMat, "PSPTO_4602",intgroup = c("class","time"), returnData = TRUE)
 
 #Convert time to hrs
 fiss$Time <- as.integer(as.numeric(as.character(fiss$time))/60)
@@ -68,6 +79,7 @@ library(ggplot2)
 myplot <- ggplot(fiss,aes(x = Time, y = count, color = class, group = class)) + geom_point() +
 geom_smooth(se = FALSE, method = "loess") + labs(x="Time (h)",y=" Normalized transcript counts") +
 scale_color_manual(values=c("#009E73", "#000000","#F0E442","#56B4E9")) +
-theme(legend.position = "none",axis.text=element_text(size=10),axis.title=element_text(size=14))
+theme(legend.position = "right",axis.text=element_text(size=10),axis.title=element_text(size=14))
+#theme(legend.position = "none",axis.text=element_text(size=10),axis.title=element_text(size=14))
 
 ggsave("Ps_PSPTO_1206_TonB.eps",plot=myplot,device="eps",width=5,height=3, units="in",dpi=300)

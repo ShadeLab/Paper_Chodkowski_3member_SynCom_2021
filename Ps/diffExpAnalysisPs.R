@@ -174,7 +174,7 @@ names(dispersions_deseq) <- row.names(diffGenesFull)
 sizeFactors <- sizeEst_deseq[which(names(sizeEst_deseq) %in% align)]
 names(sizeFactors) <- mapping$Sample
 
-#Identify transients
+#Identify DEGs
 #NOTE: matCountData should be raw counts, not normalized orelse you'll be normalizing normalized data.
 impulse_results_trends <- runImpulseDE2(matCountData = diffGenesFull,dfAnnotation =design,
 boolCaseCtrl = TRUE,vecDispersionsExternal=dispersions_deseq,
@@ -209,7 +209,7 @@ names(dispersions_deseq) <- row.names(diffGenesCv)
 sizeFactors <- sizeEst_deseq[which(names(sizeEst_deseq) %in% align)]
 names(sizeFactors) <- mapping$Sample
 
-#Identify Transients
+#Identify DEGs
 impulse_resultsCv_trends <- runImpulseDE2(matCountData = diffGenesCv,dfAnnotation =design,
 boolCaseCtrl = TRUE,vecDispersionsExternal=dispersions_deseq,
 vecSizeFactorsExternal=sizeFactors,scaQThres=0.01,boolIdentifyTransients=TRUE)
@@ -243,7 +243,7 @@ names(dispersions_deseq) <- row.names(diffGenesBt)
 sizeFactors <- sizeEst_deseq[which(names(sizeEst_deseq) %in% align)]
 names(sizeFactors) <- mapping$Sample
 
-#Identify transients
+#Identify DEGs
 impulse_resultsBt_trends <- runImpulseDE2(matCountData = diffGenesBt,dfAnnotation =design,
 boolCaseCtrl = TRUE,vecDispersionsExternal=dispersions_deseq,
 vecSizeFactorsExternal=sizeFactors,scaQThres=0.01,boolIdentifyTransients=TRUE)
@@ -251,20 +251,140 @@ vecSizeFactorsExternal=sizeFactors,scaQThres=0.01,boolIdentifyTransients=TRUE)
 saveRDS(impulse_resultsBt_trends,"diffExp/output/impulseDiffGenesPsBtvsMono_kallisto.rds")
 
 ########################################
-
-#Create venn diagram of differential gene expression with all coculture conditions compared to monoculture control
-
-diffGenesF <- readRDS("diffExp/initial_files/diffGenesF_kallistoNCBI.rds")
-
+#Now that we have significant genes determined by ImpulseDE2 model, let's filter DEGs by DEGs that have at least one TP with LFC >= 1 or <= -1
 library(ImpulseDE2)
 
 impulse_resultsFull <- readRDS("diffExp/output/impulseDiffGenesFullvsMono_kallisto.rds")
 impulse_resultsBt <- readRDS("diffExp/output/impulseDiffGenesPsBtvsMono_kallisto.rds")
 impulse_resultsCv <- readRDS("diffExp/output/impulseDiffGenesPsCvvsMono_kallisto.rds")
 
-Fullgenes <- impulse_resultsFull$vecDEGenes
-PsBtgenes <- impulse_resultsBt$vecDEGenes
-PsCvgenes <- impulse_resultsCv$vecDEGenes
+load("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/lfc/output/PsyringaeLFC_kallisto.RData")
+
+lfc_analysisFull <- cbind(lfc_3memInt_comparedtoMonoInt.fc,lfc_3mem25_comparedtoMono25.fc,lfc_3mem30_comparedtoMono30.fc,
+                          lfc_3mem35_comparedtoMono35.fc,lfc_3mem40_comparedtoMono40.fc,lfc_3mem45_comparedtoMono45.fc)
+#Just pick one sample to place the row names back in.
+row.names(lfc_analysisFull) <- row.names(lfc_3memInt_comparedtoMonoInt)
+
+lfc_analysisPsBt <- cbind(lfc_PsBtInt_comparedtoMonoInt.fc,lfc_PsBt25_comparedtoMono25.fc,lfc_PsBt30_comparedtoMono30.fc,
+                          lfc_PsBt35_comparedtoMono35.fc,lfc_PsBt40_comparedtoMono40.fc,lfc_PsBt45_comparedtoMono45.fc)
+#Just pick one sample to place the row names back in.
+row.names(lfc_analysisPsBt) <- row.names(lfc_PsBtInt_comparedtoMonoInt)
+
+lfc_analysisPsCv <- cbind(lfc_PsCvInt_comparedtoMonoInt.fc,lfc_PsCv25_comparedtoMono25.fc,lfc_PsCv30_comparedtoMono30.fc,
+                          lfc_PsCv35_comparedtoMono35.fc,lfc_PsCv40_comparedtoMono40.fc,lfc_PsCv45_comparedtoMono45.fc)
+#Just pick one sample to place the row names back in.
+row.names(lfc_analysisPsCv) <- row.names(lfc_PsCvInt_comparedtoMonoInt)
+
+lfc_analysisMono <- cbind(lfc_mono_25withinComparisionToTime0.fc,lfc_mono_30withinComparisionToTime0.fc,lfc_mono_35withinComparisionToTime0.fc,
+                          lfc_mono_40withinComparisionToTime0.fc,lfc_mono_45withinComparisionToTime0.fc)
+#Just pick one sample to place the row names back in.
+row.names(lfc_analysisMono) <- row.names(lfc_mono25_withinComparision_ToTime0)
+
+
+FullSG <- lfc_analysisFull[match(impulse_resultsFull$vecDEGenes,row.names(lfc_analysisFull)),]
+PsBtSG <- lfc_analysisPsBt[match(impulse_resultsBt$vecDEGenes,row.names(lfc_analysisPsBt)),]
+PsCvSG <- lfc_analysisPsCv[match(impulse_resultsCv$vecDEGenes,row.names(lfc_analysisPsCv)),]
+
+FullSG_lfc_analysis <- as.data.frame(FullSG)
+PsBtSG_lfc_analysis <- as.data.frame(PsBtSG)
+PsCvSG_lfc_analysis <- as.data.frame(PsCvSG)
+
+library(dplyr)
+library(tibble)
+
+#####Full community LFC thresholds
+#up-regulated
+Full_up <- FullSG_lfc_analysis %>%
+    rownames_to_column(as.character('gene')) %>%
+    filter_if(is.numeric,any_vars(. >= 1 )) %>%
+    column_to_rownames('gene')
+
+nrow(Full_up)
+
+Full_down <- FullSG_lfc_analysis %>%
+    rownames_to_column(as.character('gene')) %>%
+    filter_if(is.numeric,any_vars(. <= -1 )) %>%
+    column_to_rownames('gene')
+
+nrow(Full_down)
+
+#Find duplicate genes from both up/downregulated
+duprows <- rownames(Full_down) %in% rownames(Full_up)
+
+#Combine lists
+Full_LFC_thresh <- rbind(Full_up,Full_down[!duprows,])
+
+#Save these as that final DEGs with a LFC threshold
+saveRDS(rownames(Full_LFC_thresh),"diffExp/output/impulseResultsFull_FDR-LFC_kallisto.rds")
+
+#####PsBt LFC threshold
+#up-regulated
+PsBt_up <- PsBtSG_lfc_analysis %>%
+    rownames_to_column(as.character('gene')) %>%
+    filter_if(is.numeric,any_vars(. >= 1 )) %>%
+    column_to_rownames('gene')
+
+nrow(PsBt_up)
+
+#downregulated
+PsBt_down <-  PsBtSG_lfc_analysis %>%
+    rownames_to_column(as.character('gene')) %>%
+    filter_if(is.numeric,any_vars(. <= -1 )) %>%
+    column_to_rownames('gene')
+
+nrow(PsBt_down)
+
+#Find duplicate genes from both up/downregulated
+duprows <- rownames(PsBt_down) %in% rownames(PsBt_up)
+
+#Combine lists
+PsBt_LFC_thresh <- rbind(PsBt_up,PsBt_down[!duprows,])
+
+#Save these as that final DEGs with a LFC threshold
+saveRDS(rownames(PsBt_LFC_thresh),"diffExp/output/impulseResultsPsBt_FDR-LFC_kallisto.rds")
+
+#####PsCv LFC threshold
+#up-regulated
+PsCv_up <- PsCvSG_lfc_analysis %>%
+    rownames_to_column(as.character('gene')) %>%
+    filter_if(is.numeric,any_vars(. >= 1 )) %>%
+    column_to_rownames('gene')
+
+nrow(PsCv_up)
+
+#downregulated
+PsCv_down <-  PsCvSG_lfc_analysis %>%
+    rownames_to_column(as.character('gene')) %>%
+    filter_if(is.numeric,any_vars(. <= -1 )) %>%
+    column_to_rownames('gene')
+
+nrow(PsCv_down)
+
+#Find duplicate genes from both up/downregulated
+duprows <- rownames(PsCv_down) %in% rownames(PsCv_up)
+
+#Combine lists
+PsCv_LFC_thresh <- rbind(PsCv_up,PsCv_down[!duprows,])
+
+#Save these as that final DEGs with a LFC threshold
+saveRDS(rownames(PsCv_LFC_thresh),"diffExp/output/impulseResultsPsCv_FDR-LFC_kallisto.rds")
+
+##############################
+#Create venn diagram of differential gene expression with all coculture conditions compared to monoculture control
+
+#These will be DEGS with a LFC threshold of at least 1 or -1 at 1 TP
+
+diffGenesF <- readRDS("diffExp/initial_files/diffGenesF_kallistoNCBI.rds")
+
+library(ImpulseDE2)
+
+Fullgenes <- readRDS("diffExp/output/impulseResultsFull_FDR-LFC_kallisto.rds")
+PsBtgenes <- readRDS("diffExp/output/impulseResultsPsBt_FDR-LFC_kallisto.rds")
+PsCvgenes <- readRDS("diffExp/output/impulseResultsPsCv_FDR-LFC_kallisto.rds")
+
+#Fullgenes <- impulse_resultsFull$vecDEGenes
+#PsBtgenes <- impulse_resultsBt$vecDEGenes
+#PsCvgenes <- impulse_resultsCv$vecDEGenes
 
 library(VennDiagram)
 
@@ -280,7 +400,7 @@ filename = "ImpulseDE2Summary_comparedToMonoControl.tiff",
     cat.cex = 1.5,
     cat.fontfamily = "serif")
 
-#There appear to be 210 differentially expressed genes unique to the full community.
+#There appear to be 276 differentially expressed genes unique to the full community.
 #Are these genes differentially regulated in the Full community compared to the PsBt and PsCv cocultures?
 
 #Functions to pull of genes of interest from venn diagram.
@@ -437,10 +557,9 @@ write.csv(final_sigGeneFullOnly, "SigGenesUniqueToPs3mem.csv")
 
 library(ImpulseDE2)
 
-impulse_resultsFull <- readRDS("diffExp/output/impulseDiffGenesFullvsMono_kallisto.rds")
-impulse_resultsBt <- readRDS("diffExp/output/impulseDiffGenesPsBtvsMono_kallisto.rds")
-impulse_resultsCv <- readRDS("diffExp/output/impulseDiffGenesPsCvvsMono_kallisto.rds")
-impulse_resultsMono <- readRDS("diffExp/output/impulseDiffGenesMonoCaseOnly_kallisto.rds")
+impulse_resultsFull <- readRDS("diffExp/output/impulseResultsFull_FDR-LFC_kallisto.rds")
+impulse_resultsBt <- readRDS("diffExp/output/impulseResultsPsBt_FDR-LFC_kallisto.rds")
+impulse_resultsCv <- readRDS("diffExp/output/impulseResultsPsCv_FDR-LFC_kallisto.rds")
 
 load("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/lfc/output/PsyringaeLFC_kallisto.RData")
 
@@ -465,15 +584,13 @@ lfc_analysisMono <- cbind(lfc_mono_25withinComparisionToTime0.fc,lfc_mono_30with
 row.names(lfc_analysisMono) <- row.names(lfc_mono25_withinComparision_ToTime0)
 
 
-FullSG <- lfc_analysisFull[match(impulse_resultsFull$vecDEGenes,row.names(lfc_analysisFull)),]
-PsBtSG <- lfc_analysisPsBt[match(impulse_resultsBt$vecDEGenes,row.names(lfc_analysisPsBt)),]
-PsCvSG <- lfc_analysisPsCv[match(impulse_resultsCv$vecDEGenes,row.names(lfc_analysisPsCv)),]
-MonoSG <- lfc_analysisMono[match(impulse_resultsMono$vecDEGenes,row.names(lfc_analysisMono)),]
+FullSG <- lfc_analysisFull[match(impulse_resultsFull,row.names(lfc_analysisFull)),]
+PsBtSG <- lfc_analysisPsBt[match(impulse_resultsBt,row.names(lfc_analysisPsBt)),]
+PsCvSG <- lfc_analysisPsCv[match(impulse_resultsCv,row.names(lfc_analysisPsCv)),]
 
 FullSG_lfc_analysis <- as.data.frame(FullSG)
 PsBtSG_lfc_analysis <- as.data.frame(PsBtSG)
 PsCvSG_lfc_analysis <- as.data.frame(PsCvSG)
-MonoSG_lfc_analysis <- as.data.frame(MonoSG)
 
 library(dplyr)
 library(tibble)
@@ -721,9 +838,9 @@ impulse_resultsFull <- readRDS("diffExp/output/impulseDiffGenesFullvsMono_kallis
 impulse_resultsBt <- readRDS("diffExp/output/impulseDiffGenesPsBtvsMono_kallisto.rds")
 impulse_resultsCv <- readRDS("diffExp/output/impulseDiffGenesPsCvvsMono_kallisto.rds")
 
-Fullgenes <- impulse_resultsFull@vecDEGenes
-PsBtgenes <- impulse_resultsBt@vecDEGenes
-PsCvgenes <- impulse_resultsCv@vecDEGenes
+Fullgenes <- readRDS("diffExp/output/impulseResultsFull_FDR-LFC_kallisto.rds")
+PsBtgenes <- readRDS("diffExp/output/impulseResultsPsBt_FDR-LFC_kallisto.rds")
+PsCvgenes <- readRDS("diffExp/output/impulseResultsPsCv_FDR-LFC_kallisto.rds")
 
 #Confirm selected genes are differentially expressed.
 table(is.na(match(rownames(Full_upSP),Fullgenes)))
@@ -818,8 +935,285 @@ gg_final <- gg + scale_fill_manual(values=c("black","grey"))
 
 ggsave("Ps_COG_categories.eps",plot=gg_final,device="eps",width=30, units="cm",dpi=300)
 
+###########Coculture comparison
+
+library(DESeq2)
+library(ImpulseDE2)
+
+#Now we can start Impulse analysis
+
+#Load objects containing size factor and dispersion estimates
+
+dispersions_deseq <- readRDS("diffExp/initial_files/dispersions_deseq_kallistoNCBI.rds")
+sizeEst_deseq <- readRDS("diffExp/initial_files/sizeEst_deseq_kallistoNCBI.rds")
+diffGenesF <- readRDS("diffExp/initial_files/diffGenesF_kallistoNCBI.rds")
+
+###Now we can prep for Impulse
+library(ImpulseDE2)
+lib <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/initial_files/P-syringae_LIBRARIES.txt", sep="\t",header=TRUE)
+counts <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/initial_files/Psraw_counts_kallisoNCBI.txt",sep="\t",header=TRUE)
+
+#Remove rRNA, tRNA, and miscRNA
+library(rtracklayer)
+gff <- readGFF("initial_files/Psyringae_genomic.gff") #if NCBI
+CDS <- gff[gff$type=="CDS",]
+
+#For NCBI
+library(tidyr)
+library(dplyr)
+countsS <- counts %>% separate(target_id, c("gene","Locus"),1, sep = "-",remove=TRUE)
+countsS <- select(countsS,-c(gene))
+countsF <- countsS[which(countsS$Locus %in% CDS$locus_tag),] #For NCBI
+
+#remove non-numerical columns from count matrix
+genecounts <- countsF[2:ncol(countsF)]
+row.names(genecounts) <- countsF[,1]
+
+#Convert numeric to integers
+genecounts[1:ncol(genecounts)] <- lapply(genecounts[1:ncol(genecounts)],as.integer)
+
+#Replace NA values with 0s
+genecounts[is.na(genecounts)] <- 0
+
+#Remove 0 count genes
+genesZeroC <- rownames(genecounts)[which(rowSums(genecounts) == 0)]
+genesRemove <- c(genesZeroC)
+
+#Extract unique identifiers from each condition
+lib$libraryName = as.character(lib$libraryName)
+genecounts.sort=genecounts[,match(lib$libraryName, names(genecounts))]
+library(stringr)
+Extract <- c("3mem","Bt","Cv","mono")
+keywords <- str_extract(lib$sampleName, paste(Extract,collapse="|"))
+
+############PsBt vs PsCv "control"########
+mapping <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Pseudomonas/final_analyses_Rev/initial_files/Ps_diffExp_PsBt_v_PsCv.csv",header=TRUE,sep=",")
+
+keys <- which(keywords %in% c("3mem","Bt"))
+samps <- as.vector(lib$sampleName[keys])
+samples <- match(samps,lib$sampleName)
+geneMat <- genecounts.sort[,samples]
+genemat <- as.data.frame(geneMat)
+align <- as.vector(mapping[,1])
+
+diffGenesCo=diffGenesF[,match(align, colnames(diffGenesF))]
+colnames(diffGenesCo) <- mapping$Sample
+#rownames(diffGenes) <- rownames(genecounts.sort)
+mapping$time <- as.factor(mapping$time)
+
+design <- data.frame("Sample"=mapping$Sample,"Condition"=mapping$class,
+"Time"=mapping$time, "Batch"=rep("B_NULL",nrow(mapping),row.names=mapping$Sample))
+design$Time <- as.numeric(as.character(design$Time))*60
+design$Condition <- sub(pattern="con",replacement="control", design$Condition)
+design$Condition <- sub(pattern="exp",replacement="case", design$Condition)
+diffGenesCo <- as.matrix(diffGenesCo)
+
+names(dispersions_deseq) <- row.names(diffGenesCo)
+#For size estimates, we first need to parse out our samples of interest
+sizeFactors <- sizeEst_deseq[which(names(sizeEst_deseq) %in% align)]
+names(sizeFactors) <- mapping$Sample
+
+#Identify DEGs
+impulse_resultsCo_trends <- runImpulseDE2(matCountData = diffGenesCo,dfAnnotation =design,
+boolCaseCtrl = TRUE,vecDispersionsExternal=dispersions_deseq,
+vecSizeFactorsExternal=sizeFactors,scaQThres=0.01,boolIdentifyTransients=TRUE)
+
+saveRDS(impulse_resultsCo_trends,"diffExp/output/impulseDiffGenesPsBtvsPsCv_kallisto.rds")
+
+###########Filter DEGs by LFC threshold
+
+#Now that we have significant genes determined by ImpulseDE2 model, let's filter DEGs by DEGs that have at least one TP with LFC >= 1 or <= -1
+library(ImpulseDE2)
+
+impulse_resultsCo <- readRDS("diffExp/output/impulseDiffGenesPsBtvsPsCv_kallisto.rds")
+
+load("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/lfc/output/BthailandensisLFC_kallisto.RData")
+
+lfc_analysisCo <- cbind(lfc_PsBtInt_comparedtoPsCvInt.fc,lfc_PsBt25_comparedtoPsCv25.fc,lfc_PsBt30_comparedtoPsCv30.fc,
+                          lfc_PsBt35_comparedtoPsCv35.fc,lfc_PsBt40_comparedtoPsCv40.fc,lfc_PsBt45_comparedtoPsCv45.fc)
+#Just pick one sample to place the row names back in.
+row.names(lfc_analysisCo) <- row.names(lfc_PsBtInt_comparedtoPsCvInt)
+
+CoSG <- lfc_analysisCo[match(impulse_resultsCo$vecDEGenes,row.names(lfc_analysisCo)),]
+
+CoSG_lfc_analysis <- as.data.frame(CoSG)
+
+library(dplyr)
+library(tibble)
+
+#####Coculture comparisons LFC thresholds
+#up-regulated
+Co_up <- CoSG_lfc_analysis %>%
+    rownames_to_column(as.character('gene')) %>%
+    filter_if(is.numeric,any_vars(. >= 1 )) %>%
+    column_to_rownames('gene')
+
+nrow(Co_up)
+
+Co_down <- CoSG_lfc_analysis %>%
+    rownames_to_column(as.character('gene')) %>%
+    filter_if(is.numeric,any_vars(. <= -1 )) %>%
+    column_to_rownames('gene')
+
+nrow(Co_down)
+
+#Find duplicate genes from both up/downregulated
+duprows <- rownames(Co_down) %in% rownames(Co_up)
+
+#Combine lists
+Co_LFC_thresh <- rbind(Co_up,Co_down[!duprows,])
+
+#2962 of 4489 DEGs passed LFC threshold
+
+#Save these as that final DEGs with a LFC threshold
+saveRDS(rownames(Co_LFC_thresh),"diffExp/output/impulseResultsCo_FDR-LFC_kallisto.rds")
+
+#############Obtain gene trends in SP
+
+#Exponential Phase TP removal. It happens to be the first column in FullSG_lfc_analysis
+CoSG_lfc_analysisSP <- CoSG_lfc_analysis[,-1]
+
+#up-regulated in stationary phase
+Co_upSP <- CoSG_lfc_analysisSP %>%
+    rownames_to_column(as.character('gene')) %>%
+    filter_if(is.numeric,all_vars(. > 0 )) %>%
+    column_to_rownames('gene')
+
+nrow(Co_upSP)
+
+#downregulated in stationary phase
+Co_downSP <-  CoSG_lfc_analysisSP %>%
+    rownames_to_column(as.character('gene')) %>%
+    filter_if(is.numeric,all_vars(. < 0 )) %>%
+    column_to_rownames('gene')
+
+nrow(Co_downSP)
+
+#Filter gene trends that passed LFC threshold
+Co_upSP_F <- Co_LFC_thresh[which(rownames(Co_LFC_thresh) %in% rownames(Co_upSP)),]
+Co_downSP_F <- Co_LFC_thresh[which(rownames(Co_LFC_thresh) %in% rownames(Co_downSP)),]
+
+saveRDS(Co_upSP_F,"diffExp/output/Co_upSP_kallisto.rds")
+saveRDS(Co_downSP_F,"diffExp/output/Co_downSP_kallisto.rds")
+
+###############COG analysis##########################
+
+Ps_Cog_pre <- read.csv("diffExp/initial_files/Ps_COG_EggNogMapper.csv",header=TRUE,sep=",")
+
+#Remove Categories with less that 10 genes
+Ps_Cog <- Ps_Cog_pre[!Ps_Cog_pre$COG %in% names(which(table(Ps_Cog_pre$COG) < 10)), ]
+
+#Analyzing coculture conditions COG categories to monoculture- edit to only include signicant genes
+Co_upSP <- readRDS("diffExp/output/Co_upSP_kallisto.rds")
+Co_downSP <- readRDS("diffExp/output/Co_downSP_kallisto.rds")
+
+library(ImpulseDE2)
+#OPsain significant genes of interest
+Cogenes <- readRDS("diffExp/output/impulseResultsCo_FDR-LFC_kallisto.rds")
+
+#Confirm selected genes are differentially expressed.
+table(is.na(match(rownames(Co_upSP),Cogenes)))
+table(is.na(match(rownames(Co_downSP),Cogenes)))
+
+#All match differentially expressed genes
+
+#Plot COG categories by up and down regulated genes compared to monoculture
+
+Ps_FullU <- Ps_Cog[which(Ps_Cog$Locus %in% row.names(Co_upSP)),]
+Ps_FullD <- Ps_Cog[which(Ps_Cog$Locus %in% row.names(Co_downSP)),]
+
+Ps_FullU_sum <- as.data.frame(table(Ps_FullU$COG)/table(Ps_Cog$COG)*100)
+Ps_FullD_sum <- as.data.frame(table(Ps_FullD$COG)/table(Ps_Cog$COG)*100)
+
+#Merge dataframes
+library(tidyverse)
+Ps_Results <- list(Ps_FullU_sum, Ps_FullD_sum) %>% reduce(left_join, by = "Var1")
+
+#Change names
+names(Ps_Results) <- c("Category","Coculture_Upregulation","Coculture_Downregulation")
+
+#Reshape
+library(reshape2)
+library(dplyr)
+Ps_ResultsF <- melt(Ps_Results)
+
+#Add condition for facet
+Ps_ResultsF$Condition <- c(rep("PsBt-PsCv",nrow(Ps_Results)*2))
+#Add regulation for facet
+Ps_ResultsF$Regulation <- rep(c(rep("Upregulation",nrow(Ps_Results)),rep("Downregulation",nrow(Ps_Results))),1)
+
+#Remove NaN rows
+Ps_ResultsF <- Ps_ResultsF[complete.cases(Ps_ResultsF), ]
+
+#Drop levels with no data
+Ps_ResultsF$Category <- factor(Ps_ResultsF$Category)
+
+#Let's plot stacked bar
+library(ggplot2)
+
+## set the order categories
+temp_df_1 <-
+  Ps_ResultsF %>%
+  arrange(Category)
+the_order <- temp_df_1$Category
+
+temp_df_2 <-
+  Ps_ResultsF %>%
+  arrange(desc(Regulation))
+the_order2 <- temp_df_2$Regulation
+
+#Set order of facets
+#temp$size_f = factor(temp$size, levels=c('50%','100%','150%','200%'))
+
+#Set order of regulation
+#Ps_ResultsF$new = factor(Ps_ResultsF$Regulation, levels=c("Upregulation","Downregulation"), labels=c("Upregulation","Downregulation"))
+
+#Plot
+gg <- Ps_ResultsF %>% ggplot(aes(x=Category,weight=value,fill=Regulation)) + geom_bar(position="dodge") +  scale_x_discrete(limits = levels(the_order)) +
+  labs(x = "", y = "% genes related to category") + scale_fill_brewer(breaks=c("local", "imported"), palette = "Set1") +
+  facet_grid(rows = vars(Condition)) +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        axis.text = element_text(size=12),
+        axis.title = element_text(size=14),
+        plot.title = element_text(size=14),
+        legend.text = element_text(size=9),
+        panel.background = element_rect(fill =  "grey90"))
+
+#Order data
+Ps_ResultsF_new <- Ps_ResultsF
+
+Ps_ResultsF_new$Regulation <- factor(Ps_ResultsF_new$Regulation, levels = c("Upregulation","Downregulation"))
+Ps_ResultsF_new$Condition = factor(Ps_ResultsF$Condition, levels=c("PsBt-PsCv"))
+
+#Re-plot
+gg <- Ps_ResultsF_new %>% ggplot(aes(x=Category,weight=value,fill=Regulation)) + geom_bar(position="dodge") +  scale_x_discrete(limits = levels(the_order)) +
+  labs(x = "", y = "% genes related to category") + scale_fill_brewer(breaks=c("local", "imported"), palette = "Set1") +
+  facet_grid(rows = vars(Condition)) +
+  scale_fill_manual("legend", values = c("Upregulation" = "blue", "Downregulation" = "red"))
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        axis.text = element_text(size=12),
+        axis.title = element_text(size=14),
+        plot.title = element_text(size=14),
+        legend.text = element_text(size=9),
+        panel.background = element_rect(fill =  "grey90"))
 
 
+gg <- Ps_ResultsF_new %>% ggplot(aes(x=Category,weight=value,fill=Regulation)) + geom_bar(position="dodge") +  scale_x_discrete(limits = levels(the_order)) +
+  labs(x = "", y = "% genes related to category") + scale_fill_brewer(breaks=c("local", "imported"), palette = "Set1") +
+  facet_grid(rows = vars(Condition)) +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        axis.text = element_text(size=12),
+        axis.title = element_text(size=16),
+        plot.title = element_text(size=14),
+        legend.text = element_text(size=12),
+        strip.text.y = element_text(size = 12),
+        panel.background = element_rect(fill =  "grey90"))
 
+gg_final <- gg + scale_fill_manual(values=c("black","grey"))
+
+ggsave("PsBt-PsCv_COG_categories.eps",plot=gg_final,device="eps",width=30, units="cm",dpi=300)
 
 ```

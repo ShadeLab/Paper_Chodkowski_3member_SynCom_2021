@@ -123,6 +123,14 @@ lfc_CvPs35_comparedtoMono35 <- results(ddsMat, contrast=list(c("class_exp_Ps_vs_
 lfc_CvPs40_comparedtoMono40 <- results(ddsMat, contrast=list(c("class_exp_Ps_vs_con","classexp_Ps.time2400")))
 lfc_CvPs45_comparedtoMono45 <- results(ddsMat, contrast=list(c("class_exp_Ps_vs_con","classexp_Ps.time2700")))
 
+#CvBt vs CvPs at each time point
+lfc_CvBtInt_comparedtoCvPsInt <- results(ddsMat, contrast=list(c("class_exp_Ps_vs_con","class_exp_Bt_vs_con")))
+lfc_CvBt25_comparedtoCvPs25 <- results(ddsMat, contrast=list(c("classexp_Ps.time1500","classexp_Bt.time1500")))
+lfc_CvBt30_comparedtoCvPs30 <- results(ddsMat, contrast=list(c("classexp_Ps.time1800","classexp_Bt.time1800")))
+lfc_CvBt35_comparedtoCvPs35 <- results(ddsMat, contrast=list(c("classexp_Ps.time2100","classexp_Bt.time2100")))
+lfc_CvBt40_comparedtoCvPs40 <- results(ddsMat, contrast=list(c("classexp_Ps.time2400","classexp_Bt.time2400")))
+lfc_CvBt45_comparedtoCvPs45 <- results(ddsMat, contrast=list(c("classexp_Ps.time2700","classexp_Bt.time2700")))
+
 ###Extract fold changes from conditions compared to monoculture control (with the monoculture exception)
 
 #Cv monoculture extraction of lfc at  each time point compared to t initial
@@ -155,6 +163,14 @@ lfc_CvPs30_comparedtoMono30.fc <- lfc_CvPs30_comparedtoMono30$log2FoldChange
 lfc_CvPs35_comparedtoMono35.fc <- lfc_CvPs35_comparedtoMono35$log2FoldChange
 lfc_CvPs40_comparedtoMono40.fc <- lfc_CvPs40_comparedtoMono40$log2FoldChange
 lfc_CvPs45_comparedtoMono45.fc <- lfc_CvPs45_comparedtoMono45$log2FoldChange
+
+#CvBt extraction of lfc at each time point compared to CvPs
+lfc_CvBtInt_comparedtoCvPsInt.fc <- lfc_CvBtInt_comparedtoCvPsInt$log2FoldChange
+lfc_CvBt25_comparedtoCvPs25.fc <- lfc_CvBt25_comparedtoCvPs25$log2FoldChange
+lfc_CvBt30_comparedtoCvPs30.fc <- lfc_CvBt30_comparedtoCvPs30$log2FoldChange
+lfc_CvBt35_comparedtoCvPs35.fc <- lfc_CvBt35_comparedtoCvPs35$log2FoldChange
+lfc_CvBt40_comparedtoCvPs40.fc <- lfc_CvBt40_comparedtoCvPs40$log2FoldChange
+lfc_CvBt45_comparedtoCvPs45.fc <- lfc_CvBt45_comparedtoCvPs45$log2FoldChange
 
 lfc_analysis <- data.frame(lfc_3memInt_comparedtoMonoInt.fc,lfc_3mem25_comparedtoMono25.fc,lfc_3mem30_comparedtoMono30.fc,
                       lfc_3mem35_comparedtoMono35.fc,lfc_3mem40_comparedtoMono40.fc,lfc_3mem45_comparedtoMono45.fc,

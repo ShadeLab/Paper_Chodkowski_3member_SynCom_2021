@@ -21,7 +21,7 @@ library(ggplot2)
 #B. thailandensis plots
 groupedAvgCounts.Bt <- groupedAvgCounts[groupedAvgCounts$Species=="B. thailandensis",]
 
-groupedAvgCounts.Bt$Membership <- factor(groupedAvgCounts.Bt$Membership,levels = c("Bt","BtPs","BtCv","BtCvPs"),ordered = TRUE)
+groupedAvgCounts.Bt$Membership <- factor(groupedAvgCounts.Bt$Membership,levels = c("Bt","BtPs","BtCs","BtCsPs"),ordered = TRUE)
 
 g=ggplot(groupedAvgCounts.Bt, aes(x=as.factor(TimePoint), y=log10(mean),fill=viability))+
   geom_boxplot()+
@@ -32,7 +32,8 @@ g=ggplot(groupedAvgCounts.Bt, aes(x=as.factor(TimePoint), y=log10(mean),fill=via
 
 flowPlot <- g + ylim(c(5,10)) + xlab("Time (h)") + ylab("Log10 cells/mL") +
   theme(legend.title = element_text(size = 12),legend.text = element_text(size = 10),legend.position = "bottom") +
-  labs(fill = "Viability assessment") + guides(fill = guide_legend(reverse = TRUE))
+  labs(fill = "Viability assessment") + guides(fill = guide_legend(reverse = TRUE)) +
+  annotation_logticks(sides = "l")
 
 ggsave("SynComCellCounts.Bt.eps",plot= flowPlot,device="eps",width=6,height=8,units="in",dpi=300)
 
@@ -43,7 +44,7 @@ Bt.Summary <- groupedAvgCounts.Bt %>%
 #C. violaceum plots
 groupedAvgCounts.Cv <- groupedAvgCounts[groupedAvgCounts$Species=="C. violaceum",]
 
-groupedAvgCounts.Cv$Membership <- factor(groupedAvgCounts.Cv$Membership,levels = c("Cv","CvPs","CvBt","CvPsBt"),ordered = TRUE)
+groupedAvgCounts.Cv$Membership <- factor(groupedAvgCounts.Cv$Membership,levels = c("Cs","CsPs","CsBt","CsPsBt"),ordered = TRUE)
 
 g=ggplot(groupedAvgCounts.Cv, aes(x=as.factor(TimePoint), y=log10(mean),fill=viability))+
   geom_boxplot()+
@@ -54,7 +55,8 @@ g=ggplot(groupedAvgCounts.Cv, aes(x=as.factor(TimePoint), y=log10(mean),fill=via
 
 flowPlot <- g + ylim(c(5,10)) + xlab("Time (h)") + ylab("Log10 cells/mL") +
   theme(legend.title = element_text(size = 12),legend.text = element_text(size = 10),legend.position = "bottom") +
-  labs(fill = "Viability assessment") + guides(fill = guide_legend(reverse = TRUE))
+  labs(fill = "Viability assessment") + guides(fill = guide_legend(reverse = TRUE)) +
+  annotation_logticks(sides = "l")
 
 ggsave("SynComCellCounts.Cv.eps",plot= flowPlot,device="eps",width=6,height=8,units="in",dpi=300)
 
@@ -66,7 +68,7 @@ Cv.Summary <- groupedAvgCounts.Cv %>%
 #P. syringae plots
 groupedAvgCounts.Ps <- groupedAvgCounts[groupedAvgCounts$Species=="P. syringae",]
 
-groupedAvgCounts.Ps$Membership <- factor(groupedAvgCounts.Ps$Membership,levels = c("Ps","PsCv","PsBt","PsBtCv"),ordered = TRUE)
+groupedAvgCounts.Ps$Membership <- factor(groupedAvgCounts.Ps$Membership,levels = c("Ps","PsCs","PsBt","PsBtCs"),ordered = TRUE)
 
 g=ggplot(groupedAvgCounts.Ps, aes(x=as.factor(TimePoint), y=log10(mean),fill=viability))+
   geom_boxplot()+
@@ -77,7 +79,8 @@ g=ggplot(groupedAvgCounts.Ps, aes(x=as.factor(TimePoint), y=log10(mean),fill=via
 
 flowPlot <- g + ylim(c(5,10)) + xlab("Time (h)") + ylab("Log10 cells/mL") +
   theme(legend.title = element_text(size = 12),legend.text = element_text(size = 10),legend.position = "bottom") +
-  labs(fill = "Viability assessment") + guides(fill = guide_legend(reverse = TRUE))
+  labs(fill = "Viability assessment") + guides(fill = guide_legend(reverse = TRUE)) +
+  annotation_logticks(sides = "l")
 
 ggsave("SynComCellCounts.Ps.eps",plot= flowPlot,device="eps",width=6,height=8,units="in",dpi=300)
 

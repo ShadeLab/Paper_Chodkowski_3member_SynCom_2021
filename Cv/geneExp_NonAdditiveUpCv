@@ -8,20 +8,24 @@ library(DESeq2)
 library(ImpulseDE2)
 
 #Obtain only significantly differentially expressed genes
-impulse_resultsFull <- readRDS("diffExp/output/impulseDiffGenesFullvsMono_kallisto.rds")
-impulse_resultsBt <- readRDS("diffExp/output/impulseDiffGenesCvBtvsMono_kallisto.rds")
-impulse_resultsPs <- readRDS("diffExp/output/impulseDiffGenesCvPsvsMono_kallisto.rds")
+#impulse_resultsFull <- readRDS("diffExp/output/impulseDiffGenesFullvsMono_kallisto.rds")
+#impulse_resultsBt <- readRDS("diffExp/output/impulseDiffGenesCvBtvsMono_kallisto.rds")
+#impulse_resultsPs <- readRDS("diffExp/output/impulseDiffGenesCvPsvsMono_kallisto.rds")
 #Note: you need to load library(ImpulseDE2) before loading impulseRDS object otherwise there's issues with S4 objects.
 
-Fullgenes <- impulse_resultsFull$vecDEGenes
-CvBtgenes <- impulse_resultsBt$vecDEGenes
-CvPsgenes <- impulse_resultsPs$vecDEGenes
+#Fullgenes <- impulse_resultsFull$vecDEGenes
+#CvBtgenes <- impulse_resultsBt$vecDEGenes
+#CvPsgenes <- impulse_resultsPs$vecDEGenes
+
+Fullgenes <- readRDS("diffExp/output/impulseResultsFull_FDR-LFC_kallisto.rds")
+CvBtgenes <- readRDS("diffExp/output/impulseResultsCvBt_FDR-LFC_kallisto.rds")
+CvPsgenes <- readRDS("diffExp/output/impulseResultsCvPs_FDR-LFC_kallisto.rds")
 
 allSigGenes <- c(Fullgenes,CvBtgenes,CvPsgenes)
 allSigGenes.final <- unique(allSigGenes)
 
 #If you want to check if these are unique to only the Full community differentially expressed genes
-sigGenesFullOnly <- readRDS("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/diffExp/output/sigGenesFullOnly_Cv_kallisto.rds")
+#sigGenesFullOnly <- readRDS("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/diffExp/output/sigGenesFullOnly_Cv_kallisto.rds")
 
 #######Synergistic gene expression#######
 
@@ -79,12 +83,12 @@ lfc_Full_synergy40_filt <- lfc_Full_synergy40[lfc_Full_synergy40$lfc_3mem40_comp
 lfc_Full_synergy45_filt <- lfc_Full_synergy45[lfc_Full_synergy45$lfc_3mem45_comparedtoMono45.fc>0,]
 
 #Filter lfc >1.5 comparing Full community to additive pairwise communities
-lfc_Full_synergyInt_final <- lfc_Full_synergyInt_filt[lfc_Full_synergyInt_filt$lfc_Full_vs_pwCombined_Int>1.2,]
-lfc_Full_synergy25_final <- lfc_Full_synergy25_filt[lfc_Full_synergy25_filt$lfc_Full_vs_pwCombined_25>1.2,]
-lfc_Full_synergy30_final <- lfc_Full_synergy30_filt[lfc_Full_synergy30_filt$lfc_Full_vs_pwCombined_30>1.2,]
-lfc_Full_synergy35_final <- lfc_Full_synergy35_filt[lfc_Full_synergy35_filt$lfc_Full_vs_pwCombined_35>1.2,]
-lfc_Full_synergy40_final <- lfc_Full_synergy40_filt[lfc_Full_synergy40_filt$lfc_Full_vs_pwCombined_40>1.2,]
-lfc_Full_synergy45_final <- lfc_Full_synergy45_filt[lfc_Full_synergy45_filt$lfc_Full_vs_pwCombined_45>1.2,]
+lfc_Full_synergyInt_final <- lfc_Full_synergyInt_filt[lfc_Full_synergyInt_filt$lfc_Full_vs_pwCombined_Int>1.5,]
+lfc_Full_synergy25_final <- lfc_Full_synergy25_filt[lfc_Full_synergy25_filt$lfc_Full_vs_pwCombined_25>1.5,]
+lfc_Full_synergy30_final <- lfc_Full_synergy30_filt[lfc_Full_synergy30_filt$lfc_Full_vs_pwCombined_30>1.5,]
+lfc_Full_synergy35_final <- lfc_Full_synergy35_filt[lfc_Full_synergy35_filt$lfc_Full_vs_pwCombined_35>1.5,]
+lfc_Full_synergy40_final <- lfc_Full_synergy40_filt[lfc_Full_synergy40_filt$lfc_Full_vs_pwCombined_40>1.5,]
+lfc_Full_synergy45_final <- lfc_Full_synergy45_filt[lfc_Full_synergy45_filt$lfc_Full_vs_pwCombined_45>1.5,]
 
 
 #Put all locus tags together
@@ -95,7 +99,7 @@ genes_syn <- c(as.character(row.names(lfc_Full_synergyInt_final)),as.character(r
 #Check for the amount of unique elements
 synergyGenes <- as.data.frame(unique(genes_syn))
 
-write.csv(synergyGenes,"synergyGenes_Cv_kallisto.csv")
+write.csv(synergyGenes,"Cv_UniqueNonadditiveUpReg.csv")
 
 #Make Venn with SP time points
 library(VennDiagram)
@@ -134,10 +138,6 @@ Full_synergistic <- c(nrow(lfc_Full_synergyInt_final),nrow(lfc_Full_synergy25_fi
                       nrow(lfc_Full_synergy35_final),nrow(lfc_Full_synergy40_final),nrow(lfc_Full_synergy45_final))
 
 
-#Prepare list for figure.
-Full_synergistic <- c(nrow(lfc_Full_synergyInt_final),nrow(lfc_Full_synergy25_final),nrow(lfc_Full_synergy30_final),
-                      nrow(lfc_Full_synergy35_final),nrow(lfc_Full_synergy40_final),nrow(lfc_Full_synergy45_final))
-
 
 #List for syn and antag categories
 FinalGeneTrends_f <- data.frame(condition=rep(c("Non-additive Up"), each=6),
@@ -167,9 +167,31 @@ ggsave("Cv_nonAdditiveUp_trends.eps",plot=p2,device="eps",width=8,height=8, unit
 
 #Obtain most consistent non-additive up
 
-write.csv(row.names(lfc_Full_synergyInt_final[order(lfc_Full_synergyInt_final$lfc_Full_vs_pwCombined_Int),]), "CvNonAdditiveUp_Int.csv")
-write.csv(row.names(lfc_Full_synergy25_final[order(lfc_Full_synergy25_final$lfc_Full_vs_pwCombined_25),]), "CvNonAdditiveUp_25.csv")
-write.csv(row.names(lfc_Full_synergy30_final[order(lfc_Full_synergy30_final$lfc_Full_vs_pwCombined_30),]), "CvNonAdditiveUp_30.csv")
-write.csv(row.names(lfc_Full_synergy35_final[order(lfc_Full_synergy35_final$lfc_Full_vs_pwCombined_35),]), "CvNonAdditiveUp_35.csv")
-write.csv(row.names(lfc_Full_synergy40_final[order(lfc_Full_synergy40_final$lfc_Full_vs_pwCombined_40),]), "CvNonAdditiveUp_40.csv")
-write.csv(row.names(lfc_Full_synergy45_final[order(lfc_Full_synergy45_final$lfc_Full_vs_pwCombined_45),]), "CvNonAdditiveUp_45.csv")
+#write.csv(row.names(lfc_Full_synergyInt_final[order(lfc_Full_synergyInt_final$lfc_Full_vs_pwCombined_Int),]), "CvNonAdditiveUp_Int.csv")
+#write.csv(row.names(lfc_Full_synergy25_final[order(lfc_Full_synergy25_final$lfc_Full_vs_pwCombined_25),]), "CvNonAdditiveUp_25.csv")
+#write.csv(row.names(lfc_Full_synergy30_final[order(lfc_Full_synergy30_final$lfc_Full_vs_pwCombined_30),]), "CvNonAdditiveUp_30.csv")
+#write.csv(row.names(lfc_Full_synergy35_final[order(lfc_Full_synergy35_final$lfc_Full_vs_pwCombined_35),]), "CvNonAdditiveUp_35.csv")
+#write.csv(row.names(lfc_Full_synergy40_final[order(lfc_Full_synergy40_final$lfc_Full_vs_pwCombined_40),]), "CvNonAdditiveUp_40.csv")
+#write.csv(row.names(lfc_Full_synergy45_final[order(lfc_Full_synergy45_final$lfc_Full_vs_pwCombined_45),]), "CvNonAdditiveUp_45.csv")
+
+#Add time to time-specific non-additive genes
+lfc_Full_synergyInt_final$Time <- 12.5
+lfc_Full_synergy25_final$Time <- 25
+lfc_Full_synergy30_final$Time <- 30
+lfc_Full_synergy35_final$Time <- 35
+lfc_Full_synergy40_final$Time <- 40
+lfc_Full_synergy45_final$Time <- 45
+
+#Change column names so that we can combine data
+colnames(lfc_Full_synergyInt_final) <- c('3memberVsMonoculture','3memberVsPariwiseCombined','Time')
+colnames(lfc_Full_synergy25_final) <- c('3memberVsMonoculture','3memberVsPariwiseCombined','Time')
+colnames(lfc_Full_synergy30_final) <- c('3memberVsMonoculture','3memberVsPariwiseCombined','Time')
+colnames(lfc_Full_synergy35_final) <- c('3memberVsMonoculture','3memberVsPariwiseCombined','Time')
+colnames(lfc_Full_synergy40_final) <- c('3memberVsMonoculture','3memberVsPariwiseCombined','Time')
+colnames(lfc_Full_synergy45_final) <- c('3memberVsMonoculture','3memberVsPariwiseCombined','Time')
+
+#Combine data
+lfc_Full_synergy_combined <- rbind(lfc_Full_synergyInt_final, lfc_Full_synergy25_final, lfc_Full_synergy30_final, lfc_Full_synergy35_final,
+                              lfc_Full_synergy40_final,lfc_Full_synergy45_final)
+
+write.csv(lfc_Full_synergy_combined, "Cv_nonAdditiveUpGenes_atEachTP.csv")

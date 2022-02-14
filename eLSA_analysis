@@ -1,0 +1,94 @@
+#Read in library files
+lib_Bt <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/B-thailandensis_LIBRARIES.txt", sep="\t",header=TRUE)
+lib_Cv <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/initial_files/Cviolaceum_LIBRARIES.txt", sep="\t",header=TRUE)
+
+#Read in mapping files
+mapping_Bt <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/initial_files/Bt_diffExp_all.csv",header=TRUE,sep=",")
+mapping_Cv <- read.csv(file="/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/initial_files/Cv_diffExp_all.csv",header=TRUE,sep=",")
+
+#Read in normalized transcripts
+norm_bt <- read.csv("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Burkholderia/final_analyses_Rev/diffExp/initial_files/Bt_QCFiltered_normalizedCountMatrix_kallistoNCBI.csv",row.names=1)
+norm_cv <- read.csv("/mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Chromobacterium/final_analyses_Rev/diffExp/initial_files/Cv_QCFiltered_normalizedCountMatrix_kallistoNCBI.csv",row.names=1)
+
+#Obtain BtCv co-culture samples
+Bt_cv <- lib_Bt[lib_Bt$Condition=="Chromo",]
+
+Cv_bt <- lib_Cv[lib_Cv$Condition=="Burk",]
+
+Bt_norm <- t(norm_bt[,which(colnames(norm_bt) %in% Bt_cv$libraryName)])
+Cv_norm <- t(norm_cv[,which(colnames(norm_cv) %in% Cv_bt$libraryName)])
+
+#Double check both Bt_cv and Cv_bt. Notice how Cv_bt is missing a sample (TP 45hr, rep2). Let's add a row to Cv_norm with NA
+#In Cv_norm, TP45-R2 would be located at row 12. This corresponds to libraryName "BXNYA" for B. thailandensis.
+
+library(berryFunctions)
+
+# inserting row at position 12
+Cv_norm <- insertRows(as.data.frame(Cv_norm), 12 , new = NA)
+
+#If we wanted to remove the Bt sample so we had 23 matching rows
+#Bt_cv <- Bt_cv[-c(match("BXNYA",Bt_cv$libraryName)),]
+
+#Combine data frames
+norm_BtCv <- cbind(Bt_norm,Cv_norm)
+
+#Right now, we are organized by each time series. However, we want to organize the dataframe by all replicates at each time point.
+
+#Extract samples from mapping file
+
+mappingBt_cv <- mapping_Bt[match(Bt_cv$libraryName,mapping_Bt$Code),]
+
+#Order by time point and BioRep
+mapping_Ordered <- mappingBt_cv[order(mappingBt_cv$time,mappingBt_cv$Ind),]
+
+#Now re-order the gene matrix
+norm_BtCv <- norm_BtCv[order(match(rownames(norm_BtCv), mapping_Ordered$Code)),]
+
+
+#Double check that the time series and replicates are in order
+Bt_cv[match(rownames(norm_BtCv),Bt_cv$libraryName),]
+
+#All looks well!
+
+#Transpose
+norm_BtCv_t <- t(norm_BtCv)
+
+#Create new column names in accordance to eLSA standards
+
+#create times
+tps <- rep(c("t1","t2","t3","t4","t5","t6"),c(4,4,4,4,4,4))
+
+#create replicates
+bioR <- rep(c("r1","r2","r3","r4"),6)
+
+#Combine new identifiers
+IDs <- paste(tps,bioR,sep = "")
+
+#Replace column names with new identifiers
+colnames(norm_BtCv_t) <- IDs
+
+#Add "#" to top left cell
+cat("#BtCV", file = "BtCv_eLSA.tsv")
+
+#Write tsv file
+BtCv_eLSA_table <- write.table(norm_BtCv_t, "BtCv_eLSA.tsv", quote = FALSE, sep = "\t", append = TRUE, col.names = NA)
+
+##### Now, let's make sure this is the correct data format for eLSA
+
+#From shell
+
+cd /mnt/home/chodkows/elsa
+conda activate elsa01
+
+pip install numpy
+pip install scipy
+python setup.py install
+
+#Check data file
+check_data -h /mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Networks/Minet/BtCv/BtCv_eLSA.tsv repNum=4 spotNum=6
+
+#All seems well
+
+#Let's run eLSA
+
+lsa_compute /mnt/research/ShadeLab/Chodkowski/JGI_SynCom/RNAseq/Networks/Minet/BtCv/BtCv_eLSA.tsv BtCv_eLSA.lsa.tsv -d 1 -m 0 -p mix -r 4 -s 6
