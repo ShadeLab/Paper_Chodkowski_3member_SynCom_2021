@@ -13,7 +13,7 @@ During prolonged resource limitation, bacterial cells can persist in metabolical
 
 ## Funding
 
-This material is based upon work supported by the National Science Foundation under Grant No DEB#1749544, by Michigan State University, and by a DOE-JGI Community Science Program award (Proposal ID 502921). The work conducted by the U.S. Department of Energy Joint Genome Institute, a DOE Office of Science User Facility, is supported under Contract No. DE-AC02-05CH11231. J.C. was supported by the Eleanor L. Gilmore Fellowship from the Department of Microbiology and Molecular Genetics.
+This material is based upon work supported by the National Science Foundation under Grant No DEB#[#1749544](https://www.nsf.gov/awardsearch/showAward?AWD_ID=1749544&HistoricalAwards=false), by Michigan State University, and by a DOE-JGI Community Science Program award (Proposal ID 502921). The work conducted by the U.S. Department of Energy Joint Genome Institute, a DOE Office of Science User Facility, is supported under Contract No. DE-AC02-05CH11231. J.C. was supported by the Eleanor L. Gilmore Fellowship from the Department of Microbiology and Molecular Genetics.
 
 ## More Info
 [ShadeLab](http://ashley17061.wixsite.com/shadelab/home)
